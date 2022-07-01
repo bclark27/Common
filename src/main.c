@@ -1,6 +1,4 @@
 #include "Common.h"
-#include "SymTable.h"
-#include <stdbool.h>
 
 int main()
 {

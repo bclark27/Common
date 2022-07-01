@@ -4,7 +4,7 @@
 //  DEFINES  //
 ///////////////
 
-#define DEFAULT_HASH_TABLE_LENGTH   50
+#define DEFAULT_HASH_TABLE_LENGTH   256
 #define HASH_SEED                   0x12fa
 #define HASH_ROUNDS                 8
 #define FEEDBACK_VAL                0x87654321
