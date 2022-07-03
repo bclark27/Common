@@ -12,74 +12,80 @@
 /////////////////////////////
 
 TreeNode * initTreeNode(void);
-int computeHeight(TreeNode * node);
-char insertHelper(BinaryTree * bt, TreeNode * thisNode, TreeNode * nodeToPut);
+U4 computeHeight(TreeNode * node);
+bool insertHelper(BinaryTree * bt, TreeNode * thisNode, TreeNode * nodeToPut);
+void deleteSubTree(TreeNode * node, bool freeData, FreeDataFunction freeFunc);
 
 ////////////////////////
 //  PUBLIC FUNCTIONS  //
 ////////////////////////
 
-BinaryTree * BinaryTree_init(CompareFunction compFunc, FreeDataFunction freeFunc)
+BinaryTree * BinaryTree_init(U4 dataLen, bool passByVal, CompareFunction compFunc, FreeDataFunction freeFunc)
 {
   BinaryTree * bt = (BinaryTree *)callocOrDie(1, sizeof(BinaryTree));
   bt->compFunc = compFunc;
   bt->freeFunc = freeFunc;
+  bt->passByVal = passByVal;
+  bt->dataLen = dataLen;
   return bt;
 }
 
-void BinaryTree_free(BinaryTree * bt);
+void BinaryTree_free(BinaryTree * bt)
+{
+  if (!bt) return;
+  deleteSubTree(bt->headNode, bt->passByVal, bt->freeFunc);
+}
 
-void BinaryTree_nodePreOrderTraversal(TreeNode * tn, binaryTreeCallback callback)
+void BinaryTree_nodePreOrderTraversal(TreeNode * tn, callbackFunction callback)
 {
   if (tn == NULL) return;
-  if (tn->data != NULL) callback(tn->data);
+  if (tn->data != NULL && callback) callback(tn->data);
   BinaryTree_nodePreOrderTraversal(tn->left, callback);
   BinaryTree_nodePreOrderTraversal(tn->right, callback);
 }
 
-void BinaryTree_nodePostOrderTraversal(TreeNode * tn, binaryTreeCallback callback)
+void BinaryTree_nodePostOrderTraversal(TreeNode * tn, callbackFunction callback)
 {
   if (tn == NULL) return;
   BinaryTree_nodePostOrderTraversal(tn->left, callback);
   BinaryTree_nodePostOrderTraversal(tn->right, callback);
-  if (tn->data != NULL) callback(tn->data);
+  if (tn->data != NULL && callback) callback(tn->data);
 }
 
-void BinaryTree_nodeInOrderTraversal(TreeNode * tn, binaryTreeCallback callback)
+void BinaryTree_nodeInOrderTraversal(TreeNode * tn, callbackFunction callback)
 {
   if (tn == NULL) return;
   BinaryTree_nodeInOrderTraversal(tn->left, callback);
-  if (tn->data != NULL) callback(tn->data);
+  if (tn->data != NULL && callback) callback(tn->data);
   BinaryTree_nodeInOrderTraversal(tn->right, callback);
 }
 
-char BinaryTree_insert(BinaryTree * bt, void * data)
+bool BinaryTree_insert(BinaryTree * bt, void * data)
 {
-  if (data == NULL)
-  {
-    printf("Data to insert is NULL\n");
-    exit(1);
-  }
-
-  if (bt == NULL)
-  {
-    printf("Binary Tree is NULL\n");
-    exit(1);
-  }
+  if (!data || !data) return false;
 
   TreeNode * tn = initTreeNode();
-  tn->data = data;
+
+  if (bt->passByVal)
+  {
+    tn->data = mallocOrDie(bt->dataLen);
+    memcpy(tn->data, data, bt->dataLen);
+  }
+  else
+  {
+    tn->data = data;
+  }
 
   if (bt->headNode == NULL)
   {
     bt->headNode = tn;
-    return 1;
+    return true;
   }
 
   return insertHelper(bt, bt->headNode, tn);
 }
 
-char BinaryTree_remove(BinaryTree * bt, void * data);
+bool BinaryTree_remove(BinaryTree * bt, void * data);
 
 /////////////////////////
 //  PRIVATE FUNCTIONS  //
@@ -92,41 +98,34 @@ TreeNode * initTreeNode(void)
   return tn;
 }
 
-int computeHeight(TreeNode * node)
+U4 computeHeight(TreeNode * node)
 {
   if (node == NULL)
   {
     return 0;
   }
-  int left = computeHeight(node->left);
-  int right = computeHeight(node->right);
+
+  U4 left = computeHeight(node->left);
+  U4 right = computeHeight(node->right);
   return MAX(left, right) + 1;
 }
 
-
-
-char insertHelper(BinaryTree * bt, TreeNode * thisNode, TreeNode * nodeToPut)
+bool insertHelper(BinaryTree * bt, TreeNode * thisNode, TreeNode * nodeToPut)
 {
-  int comp = bt->compFunc(thisNode->data, nodeToPut->data);
-  if (comp == 0) return 0;
+  U1 comp = bt->compFunc(thisNode->data, nodeToPut->data);
+  if (comp == 0) return false;
 
   if (comp > 0)
   {
     if (thisNode->left == NULL)
     {
       thisNode->left = nodeToPut;
-      return 1;
     }
     else
     {
       if (insertHelper(bt, thisNode->left, nodeToPut))
       {
         thisNode->nodeCount++;
-
-        if (1)
-        {
-
-        }
       }
     }
   }
@@ -135,7 +134,6 @@ char insertHelper(BinaryTree * bt, TreeNode * thisNode, TreeNode * nodeToPut)
     if (thisNode->right == NULL)
     {
       thisNode->right = nodeToPut;
-      return 1;
     }
     else
     {
@@ -146,5 +144,17 @@ char insertHelper(BinaryTree * bt, TreeNode * thisNode, TreeNode * nodeToPut)
     }
   }
 
-  return 1;
+  return true;
+}
+
+void deleteSubTree(TreeNode * node, bool freeData, FreeDataFunction freeFunc)
+{
+  if (!node) return;
+
+  deleteSubTree(node->right, freeData, freeFunc);
+  deleteSubTree(node->left, freeData, freeFunc);
+
+  if (freeData && node->data && freeFunc) freeFunc(node->data);
+
+  free(node);
 }

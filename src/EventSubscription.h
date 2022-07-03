@@ -1,7 +1,7 @@
 #ifndef EVENT_SUBSCRIPTION_H_
 #define EVENT_SUBSCRIPTION_H_
 
-#include "Standard.h"
+#include "Common.h"
 #include"List.h"
 
 ///////////
@@ -16,7 +16,7 @@ typedef struct Subscription
   EventHandle eventHandle;
 } Subscription;
 
-#define SubscriptionChain List
+typedef List SubscriptionChain;
 
 ////////////////////////
 //  PUBLIC FUNCTIONS  //

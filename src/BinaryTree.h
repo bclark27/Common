@@ -1,8 +1,7 @@
 #ifndef BINARY_TREE_H_
 #define BINARY_TREE_H_
 
-#include "Standard.h"
-#include "List.h"
+#include "Common.h"
 
 ///////////////
 //  DEFINES  //
@@ -16,8 +15,6 @@
 //  TYPES  //
 /////////////
 
-typedef void ( *binaryTreeCallback)(void *);
-
 typedef struct TreeNode
 {
   unsigned int nodeCount;
@@ -28,24 +25,26 @@ typedef struct TreeNode
 
 typedef struct BinaryTree
 {
-  unsigned int nodeCount;
+  U4 nodeCount;
   CompareFunction compFunc;
   FreeDataFunction freeFunc;
   TreeNode * headNode;
+  bool passByVal;
+  U4 dataLen;
 } BinaryTree;
 
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
 
-BinaryTree * BinaryTree_init(CompareFunction compFunc, FreeDataFunction freeFunc);
+BinaryTree * BinaryTree_init(U4 dataLen, bool passByVal, CompareFunction compFunc, FreeDataFunction freeFunc);
 void BinaryTree_free(BinaryTree * bt);
 
-void BinaryTree_nodePreOrderTraversal(TreeNode * tn, binaryTreeCallback callback);
-void BinaryTree_nodePostOrderTraversal(TreeNode * tn, binaryTreeCallback callback);
-void BinaryTree_nodeInOrderTraversal(TreeNode * tn, binaryTreeCallback callback);
+void BinaryTree_nodePreOrderTraversal(TreeNode * tn, callbackFunction callback);
+void BinaryTree_nodePostOrderTraversal(TreeNode * tn, callbackFunction callback);
+void BinaryTree_nodeInOrderTraversal(TreeNode * tn, callbackFunction callback);
 
-char BinaryTree_insert(BinaryTree * bt, void * data);
-char BinaryTree_remove(BinaryTree * bt, void * data);
+bool BinaryTree_insert(BinaryTree * bt, void * data);
+bool BinaryTree_remove(BinaryTree * bt, void * data);
 
 #endif

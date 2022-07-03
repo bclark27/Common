@@ -1,1 +1,1 @@
-ALL files included in the "Common.h" and any defines in "Standard.h" are common utility functions and data structures of my own design which I am using the same code for in CS471 and CS440 projects. I have been told that this is not an honor code violation by my CS471 professor Dr. Adyin 
+Standard functions and types known to work 99.99% of the time!

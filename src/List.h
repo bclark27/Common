@@ -1,14 +1,11 @@
 #ifndef LIST_H_
 #define LIST_H_
 
-#include "Standard.h"
+#include "Common.h"
 
 /////////////
 //  TYPES  //
 /////////////
-
-typedef void (* FreeDataFunction)(void *);
-typedef char (* CompareFunction)(void *, void *);
 
 typedef struct Link
 {
@@ -19,37 +16,42 @@ typedef struct Link
 
 typedef struct List
 {
-  unsigned int len;
+  U4 len;
   struct Link * head;
   struct Link * tail;
+
+  U4 dataLen;
+  bool passByVal;
+  CompareFunction compFunc;
+  FreeDataFunction freeFunc;
+
 } List;
+
+typedef struct
+{
+  List * list;
+  Link * curr;
+} ListItr;
 
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
 
-List * List_listInit(void);
-void List_listObjInit(List * list);
-
-void * List_findByProperty(List * list, void * property, CompareFunction compFunc);
-
-void List_sortList(List * list, CompareFunction compFunc);
-
-void List_destroyList(List * list, FreeDataFunction freeFunc);
-void List_destroyListDynamic(List * list);
-
-void List_clearList(List * list, FreeDataFunction freeFunc);
-void List_clearListDynamic(List * list);
-
-char List_queue(List * list, void * data);
+List * List_listInit(U4 dataLen, bool passByVal, CompareFunction compFunc, FreeDataFunction freeFunc);
+void List_listObjInit(List * list, U4 dataLen, bool passByVal, CompareFunction compFunc, FreeDataFunction freeFunc);
+ListItr List_getItr(List * list);
+void * List_getNextRef(ListItr * itr);
+void * List_getNextVal(ListItr * itr);
+void List_sortList(List * list);
+void List_destroyList(List * list);
+void List_clearList(List * list);
+void List_queue(List * list, void * data);
 void * List_dequeue(List * list);
-
-void List_deleteItem(List * list, void * data, FreeDataFunction freeFunc);
-void List_deleteItemDynamic(List * list, void * data);
-
-char List_inList(List * list, void * data);
-
-void _destroyLink(List * list, Link * link, FreeDataFunction freeFunc);
-void _destroyLinkDynamic(List * list, Link * link);
+void * List_getVal(List * list, U4 index);
+void * List_getRef(List * list, U4 index);
+void * List_removeItem(List * list, U4 index);
+void List_deleteItem(List * list, U4 index);
+void List_destroyLink(List * list, Link * link);
+void List_destroyLinkAndData(List * list, Link * link);
 
 #endif

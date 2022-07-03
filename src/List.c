@@ -1,110 +1,134 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
+#include "Common.h"
 #include "List.h"
 
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
 
-static Link * createLink();
-static void freeLink(Link * link);
+static Link * createLink(void);
+static void deleteLinkData(List * list, Link * l);
 
 ////////////////////////
 //  PUBLIC FUNCTIONS  //
 ////////////////////////
 
-List * List_listInit()
+List * List_listInit(U4 dataLen, bool passByVal, CompareFunction compFunc, FreeDataFunction freeFunc)
 {
-  List * list = malloc(sizeof(List));
-  if(!list) return NULL;
-  memset(list, 0, sizeof(List));
-  return list;
+  List * l = callocOrDie(1, sizeof(List));
+  l->dataLen = dataLen;
+  l->passByVal = passByVal;
+  l->compFunc = compFunc;
+  l->freeFunc = freeFunc;
+
+  return l;
 }
 
-void List_listObjInit(List * list)
+void List_listObjInit(List * list, U4 dataLen, bool passByVal, CompareFunction compFunc, FreeDataFunction freeFunc)
 {
-  if(!list) return;
   memset(list, 0, sizeof(List));
+
+  list->dataLen = dataLen;
+  list->passByVal = passByVal;
+  list->compFunc = compFunc;
+  list->freeFunc = freeFunc;
 }
 
-void * List_findByProperty(List * list, void * property, CompareFunction compFunc)
+ListItr List_getItr(List * list)
 {
-  if(!list || list->len == 0) return NULL;
+  if (!list) return (ListItr){.list = NULL, .curr = NULL};
+  return (ListItr){.list = list, .curr = list->head};
+}
 
-  for(Link * link = list->head; link; link = link->next)
+void * List_getNextRef(ListItr * itr)
+{
+  if (!itr) return NULL;
+  Link * l = itr->curr;
+
+  if (!l) return NULL;
+
+  itr->curr = (Link *)l->next;
+
+  return l->data;
+}
+
+void * List_getNextVal(ListItr * itr)
+{
+  if (!itr) return NULL;
+  Link * l = itr->curr;
+
+  if (!l) return NULL;
+
+  itr->curr = (Link *)l->next;
+
+  void * data = mallocOrDie(itr->list->dataLen);
+  memcpy(data, l->data, itr->list->dataLen);
+  return data;
+}
+
+void List_sortList(List * list)
+{
+
+}
+
+void List_destroyList(List * list)
+{
+  Link * l = list->head;
+
+  while (l)
   {
-    if(compFunc(property, link->data) == 0)
+    deleteLinkData(list, l);
+
+    Link * next = (Link *)l->next;
+    free(l);
+    l = next;
+  }
+
+  free(list);
+}
+
+void List_clearList(List * list)
+{
+  Link * l = list->head;
+
+  while (l)
+  {
+
+    if (list->passByVal && l->data)
     {
-      return link->data;
+      if (list->freeFunc)
+      {
+        list->freeFunc(l->data);
+      }
+      else
+      {
+        free(l->data);
+      }
     }
+
+    Link * next = (Link *)l->next;
+    free(l);
+    l = next;
   }
 
-  return NULL;
+  list->head = NULL;
+  list->tail = NULL;
+  list->len = 0;
 }
 
-void List_sortList(List * list, CompareFunction compFunc)
+void List_queue(List * list, void * data)
 {
-
-}
-
-void List_destroyList(List * list, FreeDataFunction freeFunc)
-{
-  /*
-  if(!list) return;
-  Link * link = list->head;
-  Link * nextLink = list->head;
-  while(link)
-  {
-    nextLink = link->next;
-    _destroyLink(list, link, freeFunc);
-    link = nextLink;
-  }
-  free(list);
-  */
-  List_clearList(list, freeFunc);
-  free(list);
-}
-
-void List_destroyListDynamic(List * list)
-{
-  if(!list) return;
-  List_destroyList(list, NULL);
-}
-
-void List_clearList(List * list, FreeDataFunction freeFunc)
-{
-  if(!list) return;
-  Link * link = list->head;
-  Link * nextLink = list->head;
-  while(link)
-  {
-    nextLink = link->next;
-    _destroyLink(list, link, freeFunc);
-    link = nextLink;
-  }
-
-  memset(list, 0, sizeof(List));
-}
-
-void List_clearListDynamic(List * list)
-{
-  if(!list) return;
-  List_clearList(list, NULL);
-}
-
-char List_queue(List * list, void * data)
-{
-  if(!list) return 0;
-
   Link * link = createLink();
-  if(!link)
+
+  if (list->passByVal)
   {
-    return 0;
+    link->data = mallocOrDie(list->dataLen);
+    memcpy(link->data, data, list->dataLen);
+  }
+  else
+  {
+    link->data = data;
   }
 
-  link->data = data;
   if(list->head)
   {
     list->head->prev = link;
@@ -120,62 +144,91 @@ char List_queue(List * list, void * data)
     link->prev = NULL;
     link->next = NULL;
   }
-  list->len++;
 
-  return 1;
+  list->len++;
 }
 
 void * List_dequeue(List * list)
 {
-  if(!list || !list->tail) return NULL;
+  if (!list || !list->tail) return NULL;
 
   void * data = list->tail->data;
 
-  _destroyLinkDynamic(list, list->tail);
+  List_destroyLink(list, list->tail);
 
   return data;
 }
 
-void List_deleteItem(List * list, void * data, FreeDataFunction freeFunc)
+void * List_getVal(List * list, U4 index)
 {
-  if(!list || data == NULL) return;
-  for(Link * link = list->head; link; link = link->next)
+  ListItr itr = List_getItr(list);
+  void * data = List_getNextRef(&itr);
+  U4 i = 0;
+
+  while (i != index && data)
   {
-    if(link->data == data)
-    {
-      _destroyLink(list, link, freeFunc);
-      return;
-    }
+    data = List_getNextRef(&itr);
+    i++;
   }
+
+  if (i != index) return NULL;
+
+  void * ret = mallocOrDie(list->dataLen);
+  memcpy(ret, data, list->dataLen);
+  return ret;
 }
 
-void List_deleteItemDynamic(List * list, void * data)
+void * List_getRef(List * list, U4 index)
 {
-  if(!list) return;
-  for(Link * link = list->head; link; link = link->next)
+  ListItr itr = List_getItr(list);
+  void * data = List_getNextRef(&itr);
+  U4 i = 0;
+
+  while (i != index && data)
   {
-    if(link->data == data)
-    {
-      _destroyLink(list, link, NULL);
-      return;
-    }
+    data = List_getNextRef(&itr);
+    i++;
   }
+
+  return data;
 }
 
-char List_inList(List * list, void * data)
+void * List_removeItem(List * list, U4 index)
 {
-  if(!list) return 0;
-  for(Link * link = list->head; link; link = link->next)
+  Link * l = list->head;
+  U4 i = 0;
+
+  while (i != index && l)
   {
-    if(link->data == data)
-    {
-      return 1;
-    }
+    l = l->next;
+    i++;
   }
-  return 0;
+
+  if (i != index || !l) return NULL;
+
+  void * data = l->data;
+  List_destroyLink(list, l);
+  return data;
 }
 
-void _destroyLink(List * list, Link * link, FreeDataFunction freeFunc)
+void List_deleteItem(List * list, U4 index)
+{
+  Link * l = list->head;
+  U4 i = 0;
+
+  while (i != index && l)
+  {
+    l = l->next;
+    i++;
+  }
+
+  if (i != index || !l) return;
+
+  deleteLinkData(list, l);
+  List_destroyLink(list, l);
+}
+
+void List_destroyLink(List * list, Link * link)
 {
   if(link->prev == NULL && link->next == NULL)
   {
@@ -199,31 +252,42 @@ void _destroyLink(List * list, Link * link, FreeDataFunction freeFunc)
   }
 
   list->len--;
-  if(freeFunc)
-  {
-    freeFunc(link->data);
-  }
 
-  freeLink(link);
+  free(link);
 }
 
-void _destroyLinkDynamic(List * list, Link * link)
+void List_destroyLinkAndData(List * list, Link * link)
 {
-  _destroyLink(list, link, NULL);
+  if (!list || !link) return;
+
+  void * data = link->data;
+
+  List_destroyLink(list, link);
+  if (list->freeFunc) list->freeFunc(data);
 }
 
 /////////////////////////
 //  PRIVATE FUNCTIONS  //
 /////////////////////////
 
-static Link * createLink()
+static Link * createLink(void)
 {
   Link * link = malloc(sizeof(Link));
   memset(link, 0, sizeof(Link));
   return link;
 }
 
-static void freeLink(Link * link)
+static void deleteLinkData(List * list, Link * l)
 {
-  free(link);
+  if (list->passByVal && l->data)
+  {
+    if (list->freeFunc)
+    {
+      list->freeFunc(l->data);
+    }
+    else
+    {
+      free(l->data);
+    }
+  }
 }

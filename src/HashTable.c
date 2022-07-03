@@ -14,29 +14,26 @@
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
 
-HashTableLink * createHashLink(HashTable * ht, unsigned char * key, unsigned int keyLen, void * data);
-void freeHashLink(void *);
-char compareHashTableLinks(void * item1, void * item2);
-unsigned short hashGen(unsigned char * key, unsigned int keyLen);
-void updateHashState(unsigned int * state);
-Link * keyAlreadyExists(HashTable * ht, unsigned char * key, unsigned int keyLen);
+static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc);
+static void freeHashLink(void * ptr);
+static U2 hashGen(void * key, U4 keyLen);
+static void updateHashState(U4 * state);
+static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen);
 
 ////////////////////////
 //  PUBLIC FUNCTIONS  //
 ////////////////////////
 
-HashTable * HashTable_init(unsigned int dataLen, FreeDataFunction dataFreeFunc)
+HashTable * HashTable_init(bool passByVal)
 {
-  HashTable * ht = (HashTable *)callocOrDie(1, sizeof(HashTable));
-  ht->table = ArrayList_init(sizeof(List), DEFAULT_HASH_TABLE_LENGTH);
-  ht->dataLen = dataLen;
-  ht->dataFreeFunc = dataFreeFunc;
+  HashTable * ht = callocOrDie(1, sizeof(HashTable));
+  ht->table = callocOrDie(DEFAULT_HASH_TABLE_LENGTH, sizeof(List));
+  ht->size = DEFAULT_HASH_TABLE_LENGTH;
+  ht->passByVal = passByVal;
 
-  for (int i = 0; i < DEFAULT_HASH_TABLE_LENGTH; i++)
+  for (U4 i = 0; i < DEFAULT_HASH_TABLE_LENGTH; i++)
   {
-    List list;
-    List_listObjInit(&list);
-    ArrayList_append(ht->table, &list);
+    List_listObjInit(&ht->table[i], sizeof(HashTableLink), true, NULL, freeHashLink);
   }
 
   return ht;
@@ -44,114 +41,174 @@ HashTable * HashTable_init(unsigned int dataLen, FreeDataFunction dataFreeFunc)
 
 void HashTable_free(HashTable * ht)
 {
-  for (int i = 0; i < DEFAULT_HASH_TABLE_LENGTH; i++)
+  if (ht == NULL) return;
+
+  for (U4 i = 0; i < ht->size; i++)
   {
-    List * list = ArrayList_get(ht->table, i);
-    List_clearList(list, freeHashLink);
+    List_clearList(&ht->table[i]);
   }
 
-  ArrayList_freeList(ht->table);
+  free(ht->table);
   free(ht);
 }
 
-char HashTable_insert(HashTable * ht, unsigned char * key, unsigned int keyLen, void * data)
+bool HashTable_insert(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc)
 {
-  unsigned short hash = hashGen(key, keyLen);
-  unsigned int index = hash % DEFAULT_HASH_TABLE_LENGTH;
+  if (!ht || !key) return false;
+
+  U2 hash = hashGen(key, keyLen);
+  U4 index = hash % ht->size;
+  List * thisList = &(ht->table[index]);
 
   Link * link = keyAlreadyExists(ht, key, keyLen);
-  List * thisList = (List *)ArrayList_get(ht->table, index);
-
-  HashTableLink * entry = createHashLink(ht, key, keyLen, data);
+  HashTableLink entry = createHashLink(ht, key, keyLen, val, valLen, freeDataFunc, freeKeyFunc);
 
   if (link)
   {
-    _destroyLink(thisList, link, ht->dataFreeFunc);
+    List_destroyLinkAndData(thisList, link);
   }
 
-  List_queue(thisList, entry);
+  List_queue(thisList, &entry);
 
-  return 1;
+  return true;
 }
 
-void * HashTable_get(HashTable * ht, unsigned char * key, unsigned int keyLen)
+void * HashTable_getRef(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
 {
   Link * link = keyAlreadyExists(ht, key, keyLen);
 
   if (link)
   {
     HashTableLink * hashLink = (HashTableLink * )link->data;
-    return hashLink->data;
+    if (!hashLink) return NULL;
+
+    if (valLen) *valLen = hashLink->valLen;
+    return hashLink->val;
   }
+
   return NULL;
 }
 
-void HashTable_remove(HashTable * ht, unsigned char * key, unsigned int keyLen)
+void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
 {
-  unsigned short hash = hashGen(key, keyLen);
-  unsigned int index = hash % DEFAULT_HASH_TABLE_LENGTH;
-
   Link * link = keyAlreadyExists(ht, key, keyLen);
 
   if (link)
   {
-    List * thisList = (List *)ArrayList_get(ht->table, index);
-    _destroyLink(thisList, link, ht->dataFreeFunc);
+    HashTableLink * hashLink = (HashTableLink * )link->data;
+    if (!hashLink || !hashLink->val) return NULL;
+
+    if (valLen) *valLen = hashLink->valLen;
+    void * ret = mallocOrDie(hashLink->valLen);
+    memcpy(ret, hashLink->val, hashLink->valLen);
+    return ret;
+  }
+
+  return NULL;
+}
+
+void HashTable_remove(HashTable * ht, void * key, unsigned int keyLen)
+{
+  if (!ht || !key) return;
+
+  U2 hash = hashGen(key, keyLen);
+  U4 index = hash % ht->size;
+
+  List * thisList = &(ht->table[index]);
+  Link * link = keyAlreadyExists(ht, key, keyLen);
+
+  if (link)
+  {
+    List_destroyLinkAndData(thisList, link);
   }
 }
 
-bool HashTable_in(HashTable * ht, unsigned char * key, unsigned int keyLen)
+bool HashTable_keyIn(HashTable * ht, void * key, U4 keyLen)
 {
+  if (!ht || !key) return false;
   return keyAlreadyExists(ht, key, keyLen) ? true : false;
+}
+
+bool HashTable_valIn(HashTable * ht, void * key, U4 keyLen)
+{
+  // TODO: implement
+  return false;
 }
 
 /////////////////////////
 //  PRIVATE FUNCTIONS  //
 /////////////////////////
 
-HashTableLink * createHashLink(HashTable * ht, unsigned char * key, unsigned int keyLen, void * data)
+static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc)
 {
-  HashTableLink * hashEntry = (HashTableLink *)malloc(sizeof(HashTableLink));
-  hashEntry->key = (unsigned char *)malloc(keyLen);
-  hashEntry->data = malloc(ht->dataLen);
-  memcpy(hashEntry->key, key, keyLen);
-  memcpy(hashEntry->data, data, ht->dataLen);
-  hashEntry->dataFreeFunc = ht->dataFreeFunc;
-  hashEntry->keyLen = keyLen;
+  HashTableLink hashEntry;
+
+  hashEntry.freeKeyFunc = freeKeyFunc;
+  hashEntry.keyLen = keyLen;
+  hashEntry.key = mallocOrDie(keyLen);
+  memcpy(hashEntry.key, key, keyLen);
+
+  hashEntry.passByVal = ht->passByVal;
+  hashEntry.freeDataFunc = freeDataFunc;
+  hashEntry.valLen = valLen;
+
+  if (val && valLen)
+  {
+    if (ht->passByVal)
+    {
+      hashEntry.val = mallocOrDie(valLen);
+      memcpy(hashEntry.val, val, valLen);
+    }
+    else
+    {
+      hashEntry.val = val;
+    }
+  }
+  else
+  {
+    hashEntry.valLen = 0;
+    hashEntry.val = NULL;
+  }
 
   return hashEntry;
 }
 
-void freeHashLink(void * ptr)
+static void freeHashLink(void * ptr)
 {
   HashTableLink * hashLink = (HashTableLink *)ptr;
   if (hashLink == NULL) return;
-  if (hashLink->key) free(hashLink->key);
-  if (hashLink->data && hashLink->dataFreeFunc) hashLink->dataFreeFunc(hashLink->data);
+
+  if (hashLink->key)
+  {
+    if (hashLink->freeKeyFunc)
+    {
+      hashLink->freeKeyFunc(hashLink->key);
+    }
+    else
+    {
+      free(hashLink->key);
+    }
+  }
+
+  if (hashLink->val && hashLink->passByVal)
+  {
+    if (hashLink->freeDataFunc)
+    {
+      hashLink->freeDataFunc(hashLink->val);
+    }
+    else
+    {
+      free(hashLink->val);
+    }
+  }
+
   free(hashLink);
 }
 
-unsigned short hashGen(unsigned char * key, unsigned int keyLen)
-{
-  if (key == NULL || keyLen == 0) return 0;
-
-  unsigned int state = HASH_SEED;
-  unsigned int temp;
-  for (int i = 0; i < keyLen; i++)
-  {
-    // update the hash state
-    temp = key[i] << 24;
-    state = ((state ^ temp) & 0xff000000) | (state & 0x00ffffff);
-    updateHashState(&state);
-  }
-
-  return state & 0xffff;
-}
-
-void updateHashState(unsigned int * state)
+static void updateHashState(U4 * state)
 {
   // update the state (default is 8 iterations)
-  for (int i = 0; i < HASH_ROUNDS; i++)
+  for (U4 i = 0; i < HASH_ROUNDS; i++)
   {
     // if the lowest bit is 1, shift and xor with feedback
     if (*state & 1)
@@ -166,12 +223,30 @@ void updateHashState(unsigned int * state)
   }
 }
 
-Link * keyAlreadyExists(HashTable * ht, unsigned char * key, unsigned int keyLen)
+static U2 hashGen(void * key, U4 keyLen)
 {
-  unsigned short hash = hashGen(key, keyLen);
-  unsigned int index = hash % DEFAULT_HASH_TABLE_LENGTH;
+  if (key == NULL || keyLen == 0) return 0;
 
-  List * thisList = (List *)ArrayList_get(ht->table, index);
+  U4 state = HASH_SEED;
+  U4 temp;
+  U1 * charKey = (U1 *)key;
+  for (int i = 0; i < keyLen; i++)
+  {
+    // update the hash state
+    temp = ((U4)charKey[i]) << 24;
+    state = ((state ^ temp) & 0xff000000) | (state & 0x00ffffff);
+    updateHashState(&state);
+  }
+
+  return state & 0xffff;
+}
+
+static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen)
+{
+  U2 hash = hashGen(key, keyLen);
+  U4 index = hash % ht->size;
+
+  List * thisList = &(ht->table[index]);
 
   for(Link * link = thisList->head; link; link = link->next)
   {

@@ -1,12 +1,12 @@
 #include "EventSubscription.h"
 
-#include "Standard.h"
+#include "Common.h"
 
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
 
-static char subscriberAlreadyExists(SubscriptionChain * subChain, void * subscriber);
+static bool subscriberAlreadyExists(SubscriptionChain * subChain, void * subscriber);
 static void freeSubscription(void * s);
 
 ////////////////////////
@@ -16,58 +16,56 @@ static void freeSubscription(void * s);
 //public function to create a new event subscription chain
 SubscriptionChain * subChain_subscriptionChainInit()
 {
-  return List_listInit();
+  return List_listInit(sizeof(Subscription), true, NULL, freeSubscription);
 }
 
 //public function too completely free up an event subscription chain
 void subChain_freeSubscriptionChain(SubscriptionChain * sc)
 {
-  List_destroyList(sc, freeSubscription);
+  List_destroyList(sc);
 }
 
 char subChain_addSubscription(SubscriptionChain * subChain, void * subscriber, EventHandle handle)
 {
   if(subChain && !subscriberAlreadyExists(subChain, subscriber))
   {
-    Subscription * sub = (Subscription *)malloc(sizeof(Subscription));
-    if(!sub)
-    {
-      return 0;
-    }
-    sub->subscriber = subscriber;
-    sub->eventHandle = handle;
-    return List_queue(subChain, sub);
+    Subscription sub = {.subscriber = subscriber, .eventHandle = handle};
+    List_queue(subChain, &sub);
+    return true;
   }
-  return 0;
+
+  return false;
 }
 
 void subChain_removeSubscription(SubscriptionChain * subChain, void * subscriber)
 {
-  if(subChain && subChain->len > 0)
+  if(!subChain || subChain->len <= 0) return;
+
+  ListItr itr = List_getItr(subChain);
+  Subscription * sub = List_getNextRef(&itr);
+  U4 i;
+
+  for (i = 0; sub; i++, sub = List_getNextRef(&itr))
   {
-    for(Link * link = subChain->head; link; link = link->next)
-    {
-      Subscription * sub = (Subscription *)(link->data);
-      if(sub->subscriber == subscriber)
-      {
-        //bug here??? idk maybe seg fault i cant see yet. second line down is origonal
-        _destroyLink(subChain, link, freeSubscription);
-        //deleteItem(subChain, sub, freeSubscription);
-        return;
-      }
-    }
+    if (sub->subscriber == subscriber) break;
   }
+
+  if (!sub) return;
+
+  List_deleteItem(subChain, i);
 }
 
 void subChain_eventTrigger(SubscriptionChain * subChain, void * args)
 {
-  if(subChain)
+  if(!subChain) return;
+
+  ListItr itr = List_getItr(subChain);
+  Subscription * sub = List_getNextRef(&itr);
+
+  while (sub)
   {
-    for(Link * link = subChain->head; link; link = link->next)
-    {
-      Subscription * sub = (Subscription *)(link->data);
-      sub->eventHandle(sub->subscriber, args);
-    }
+    sub->eventHandle(sub->subscriber, args);
+    sub = List_getNextRef(&itr);
   }
 }
 
@@ -75,7 +73,7 @@ void subChain_eventTrigger(SubscriptionChain * subChain, void * args)
 //  PRIVATE FUNCTIONS  //
 /////////////////////////
 
-static char subscriberAlreadyExists(SubscriptionChain * subChain, void * subscriber)
+static bool subscriberAlreadyExists(SubscriptionChain * subChain, void * subscriber)
 {
   for(Link * link = subChain->head; link; link = link->next)
   {
@@ -83,10 +81,11 @@ static char subscriberAlreadyExists(SubscriptionChain * subChain, void * subscri
     void * sub = subscription->subscriber;
     if(sub == subscriber)
     {
-      return 1;
+      return true;
     }
   }
-  return 0;
+  
+  return false;
 }
 
 static void freeSubscription(void * s){

@@ -1,39 +1,43 @@
 #ifndef HASH_TABLE_H_
 #define HASH_TABLE_H_
 
-#include "Standard.h"
+#include "Common.h"
 #include "List.h"
-#include "ArrayList.h"
 
 /////////////
 //  TYPES  //
 /////////////
 
-typedef struct HashTableLink
+typedef struct
 {
-  unsigned char * key;
-  unsigned int keyLen;
-  void * data;
-  FreeDataFunction dataFreeFunc;
+  void * key;
+  U4 keyLen;
+  FreeDataFunction freeKeyFunc;
+  void * val;
+  U4 valLen;
+  FreeDataFunction freeDataFunc;
+  bool passByVal;
 } HashTableLink;
 
-typedef struct HashTable
+typedef struct
 {
-  ArrayList * table;
-  unsigned int dataLen;
-  FreeDataFunction dataFreeFunc;
+  List * table;
+  U4 size;
+  bool passByVal;
 } HashTable;
 
 /////////////////////////////
 //  FUNDTION DECLERATIONS  //
 /////////////////////////////
 
-HashTable * HashTable_init(unsigned int dataLen, FreeDataFunction dataFreeFunc);
+HashTable * HashTable_init(bool passByVal);
 void HashTable_free(HashTable * ht);
 
-char HashTable_insert(HashTable * ht, unsigned char * key, unsigned int keyLen, void * data);
-void * HashTable_get(HashTable * ht, unsigned char * key, unsigned int keyLen);
-void HashTable_remove(HashTable * ht, unsigned char * key, unsigned int keyLen);
-bool HashTable_in(HashTable * ht, unsigned char * key, unsigned int keyLen);
+bool HashTable_insert(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc);
+void * HashTable_getRef(HashTable * ht, void * key, U4 keyLen, U4 * valLen);
+void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen);
+void HashTable_remove(HashTable * ht, void * key, U4 keyLen);
+bool HashTable_keyIn(HashTable * ht, void * key, U4 keyLen);
+bool HashTable_valIn(HashTable * ht, void * key, U4 keyLen);
 
 #endif
