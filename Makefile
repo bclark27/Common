@@ -18,6 +18,7 @@ ifeq ($(OS),Windows_NT)
 endif
 TARGET := $(BIN_PATH)/$(TARGET_NAME)
 TARGET_DEBUG := $(DBG_PATH)/$(TARGET_NAME)
+TARGET_LIB := $(BIN_PATH)/lib$(TARGET_NAME).a
 
 # src files & obj files
 SRC := $(foreach x, $(SRC_PATH), $(wildcard $(addprefix $(x)/*,.c*)))
@@ -47,6 +48,9 @@ $(DBG_PATH)/%.o: $(SRC_PATH)/%.c*
 $(TARGET_DEBUG): $(OBJ_DEBUG)
 	$(CC) $(CCFLAGS) $(DBGFLAGS) $(OBJ_DEBUG) -o $@ $(LIBS)
 
+$(TARGET_LIB): $(OBJ)
+	$(CC) $(CCFLAGS) -c -o $@ $(OBJ) $(LIBS)
+
 # phony rules
 .PHONY: makedir
 makedir:
@@ -62,6 +66,12 @@ debug: $(TARGET_DEBUG)
 clean:
 	@echo CLEAN $(CLEAN_LIST)
 	@rm -f $(CLEAN_LIST)
+
+.PHONY: lib
+lib:
+	@make
+	@ar ruv $(TARGET_LIB) $(OBJ)
+	@ranlib $(TARGET_LIB)
 
 .PHONY: distclean
 distclean:
