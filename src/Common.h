@@ -1,8 +1,6 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
-#define TRACK_MEM
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>

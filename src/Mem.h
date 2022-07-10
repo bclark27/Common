@@ -1,3 +1,13 @@
+/*
+To use the mem tracker, define TRACK_MEM at the very top of any file you want
+to track. If you define it at the top of a header, it will them track all files
+that header is included in. If malloc is called in a file that is being tracked,
+but then that memory is freed in a file where memory is not being tracked, then
+the tracker will assume that the memory is still in use. Free can still be called
+on pointers that have not been tracked, but the tracker will tell you it thinks
+this is a bad free.
+*/
+
 #ifndef MEM_H_
 #define MEM_H_
 
