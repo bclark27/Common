@@ -16,9 +16,9 @@ void incresseSize(ArrayList * al);
 
 ArrayList * ArrayList_init(unsigned int elementSize, unsigned int initSize)
 {
-  ArrayList * al = callocOrDie(1, sizeof(ArrayList));
+  ArrayList * al = calloc(1, sizeof(ArrayList));
   al->elementSize = elementSize;
-  al->data = (unsigned char *)callocOrDie(initSize, elementSize);
+  al->data = (unsigned char *)calloc(initSize, elementSize);
   al->listLen = initSize;
   al->elementCount = 0;
 

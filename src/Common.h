@@ -1,11 +1,14 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
+#define TRACK_MEM
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include "Mem.h"
 
 ///////////////
 //  DEFINES  //
@@ -35,13 +38,10 @@
 
 typedef void (* FreeDataFunction)(void *);
 typedef U1 (* CompareFunction)(void *, void *);
-typedef void ( *callbackFunction)(void *);
+typedef void ( *callbackFunction)(void *, void *);
 
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
-
-void * mallocOrDie(size_t size);
-void * callocOrDie(size_t count, size_t size);
 
 #endif

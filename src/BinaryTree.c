@@ -6,7 +6,6 @@
 
 #define BF(node) (computeHeight((TreeNode*)node->right) - computeHeight((TreeNode*)node->left))
 
-
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
@@ -22,7 +21,7 @@ void deleteSubTree(TreeNode * node, bool freeData, FreeDataFunction freeFunc);
 
 BinaryTree * BinaryTree_init(U4 dataLen, bool passByVal, CompareFunction compFunc, FreeDataFunction freeFunc)
 {
-  BinaryTree * bt = (BinaryTree *)callocOrDie(1, sizeof(BinaryTree));
+  BinaryTree * bt = (BinaryTree *)calloc(1, sizeof(BinaryTree));
   bt->compFunc = compFunc;
   bt->freeFunc = freeFunc;
   bt->passByVal = passByVal;
@@ -36,28 +35,28 @@ void BinaryTree_free(BinaryTree * bt)
   deleteSubTree(bt->headNode, bt->passByVal, bt->freeFunc);
 }
 
-void BinaryTree_nodePreOrderTraversal(TreeNode * tn, callbackFunction callback)
+void BinaryTree_nodePreOrderTraversal(TreeNode * tn, callbackFunction callback, void * args)
 {
   if (tn == NULL) return;
-  if (tn->data != NULL && callback) callback(tn->data);
-  BinaryTree_nodePreOrderTraversal(tn->left, callback);
-  BinaryTree_nodePreOrderTraversal(tn->right, callback);
+  if (tn->data != NULL && callback) callback(tn->data, args);
+  BinaryTree_nodePreOrderTraversal(tn->left, callback, args);
+  BinaryTree_nodePreOrderTraversal(tn->right, callback, args);
 }
 
-void BinaryTree_nodePostOrderTraversal(TreeNode * tn, callbackFunction callback)
+void BinaryTree_nodePostOrderTraversal(TreeNode * tn, callbackFunction callback, void * args)
 {
   if (tn == NULL) return;
-  BinaryTree_nodePostOrderTraversal(tn->left, callback);
-  BinaryTree_nodePostOrderTraversal(tn->right, callback);
-  if (tn->data != NULL && callback) callback(tn->data);
+  BinaryTree_nodePostOrderTraversal(tn->left, callback, args);
+  BinaryTree_nodePostOrderTraversal(tn->right, callback, args);
+  if (tn->data != NULL && callback) callback(tn->data, args);
 }
 
-void BinaryTree_nodeInOrderTraversal(TreeNode * tn, callbackFunction callback)
+void BinaryTree_nodeInOrderTraversal(TreeNode * tn, callbackFunction callback, void * args)
 {
   if (tn == NULL) return;
-  BinaryTree_nodeInOrderTraversal(tn->left, callback);
-  if (tn->data != NULL && callback) callback(tn->data);
-  BinaryTree_nodeInOrderTraversal(tn->right, callback);
+  BinaryTree_nodeInOrderTraversal(tn->left, callback, args);
+  if (tn->data != NULL && callback) callback(tn->data, args);
+  BinaryTree_nodeInOrderTraversal(tn->right, callback, args);
 }
 
 bool BinaryTree_insert(BinaryTree * bt, void * data)
@@ -68,7 +67,7 @@ bool BinaryTree_insert(BinaryTree * bt, void * data)
 
   if (bt->passByVal)
   {
-    tn->data = mallocOrDie(bt->dataLen);
+    tn->data = malloc(bt->dataLen);
     memcpy(tn->data, data, bt->dataLen);
   }
   else
@@ -93,7 +92,7 @@ bool BinaryTree_remove(BinaryTree * bt, void * data);
 
 TreeNode * initTreeNode(void)
 {
-  TreeNode * tn = (TreeNode *)callocOrDie(1, sizeof(TreeNode));
+  TreeNode * tn = (TreeNode *)calloc(1, sizeof(TreeNode));
   tn->nodeCount = 1;
   return tn;
 }

@@ -4,9 +4,21 @@
 #include "Common.h"
 #include "List.h"
 
+///////////////
+//  DEFINES  //
+///////////////
+
+#define DEFAULT_HASH_TABLE_LENGTH   421
+
 /////////////
 //  TYPES  //
 /////////////
+
+typedef struct
+{
+  void * key;
+  void * val;
+} HashKVPair;
 
 typedef struct
 {
@@ -24,6 +36,7 @@ typedef struct
   List * table;
   U4 size;
   bool passByVal;
+  U4 elementCount;
 } HashTable;
 
 /////////////////////////////
@@ -39,5 +52,8 @@ void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen);
 void HashTable_remove(HashTable * ht, void * key, U4 keyLen);
 bool HashTable_keyIn(HashTable * ht, void * key, U4 keyLen);
 bool HashTable_valIn(HashTable * ht, void * key, U4 keyLen);
+void HashTable_iterateTableVals(HashTable * ht, callbackFunction callBack, void * args);
+void HashTable_iterateTableKeys(HashTable * ht, callbackFunction callBack, void * args);
+void HashTable_iterateTableKV(HashTable * ht, callbackFunction callBack, void * args);
 
 #endif

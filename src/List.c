@@ -14,7 +14,7 @@ static void deleteLinkData(List * list, Link * l);
 
 List * List_listInit(U4 dataLen, bool passByVal, CompareFunction compFunc, FreeDataFunction freeFunc)
 {
-  List * l = callocOrDie(1, sizeof(List));
+  List * l = calloc(1, sizeof(List));
   l->dataLen = dataLen;
   l->passByVal = passByVal;
   l->compFunc = compFunc;
@@ -31,6 +31,18 @@ void List_listObjInit(List * list, U4 dataLen, bool passByVal, CompareFunction c
   list->passByVal = passByVal;
   list->compFunc = compFunc;
   list->freeFunc = freeFunc;
+}
+
+void List_iterateList(List * list, callbackFunction callBack, void * args)
+{
+  if (!list || !callBack) return;
+  Link * l = list->head;
+
+  while (l)
+  {
+    callBack(l->data, args);
+    l = l->next;
+  }
 }
 
 ListItr List_getItr(List * list)
@@ -60,7 +72,7 @@ void * List_getNextVal(ListItr * itr)
 
   itr->curr = (Link *)l->next;
 
-  void * data = mallocOrDie(itr->list->dataLen);
+  void * data = malloc(itr->list->dataLen);
   memcpy(data, l->data, itr->list->dataLen);
   return data;
 }
@@ -121,7 +133,7 @@ void List_queue(List * list, void * data)
 
   if (list->passByVal)
   {
-    link->data = mallocOrDie(list->dataLen);
+    link->data = malloc(list->dataLen);
     memcpy(link->data, data, list->dataLen);
   }
   else
@@ -173,7 +185,7 @@ void * List_getVal(List * list, U4 index)
 
   if (i != index) return NULL;
 
-  void * ret = mallocOrDie(list->dataLen);
+  void * ret = malloc(list->dataLen);
   memcpy(ret, data, list->dataLen);
   return ret;
 }

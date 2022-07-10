@@ -4,11 +4,20 @@
 //  DEFINES  //
 ///////////////
 
-#define DEFAULT_HASH_TABLE_LENGTH   256
 #define HASH_SEED                   0x12fa
 #define HASH_ROUNDS                 8
 #define FEEDBACK_VAL                0x87654321
 #define PAD_VAL                     0xc4
+
+/////////////
+//  TYPES  //
+/////////////
+
+typedef struct
+{
+  callbackFunction func;
+  void * args;
+} hashLinkCallbackPackage;
 
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
@@ -16,9 +25,12 @@
 
 static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc);
 static void freeHashLink(void * ptr);
-static U2 hashGen(void * key, U4 keyLen);
+static U4 hashGen(void * key, U4 keyLen);
 static void updateHashState(U4 * state);
 static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen);
+static void iterateValsHelper(void * hashLink, void * args);
+static void iterateKeysHelper(void * hashLink, void * args);
+static void iterateKVHelper(void * hashLink, void * args);
 
 ////////////////////////
 //  PUBLIC FUNCTIONS  //
@@ -26,10 +38,11 @@ static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen);
 
 HashTable * HashTable_init(bool passByVal)
 {
-  HashTable * ht = callocOrDie(1, sizeof(HashTable));
-  ht->table = callocOrDie(DEFAULT_HASH_TABLE_LENGTH, sizeof(List));
+  HashTable * ht = calloc(1, sizeof(HashTable));
+  ht->table = calloc(DEFAULT_HASH_TABLE_LENGTH, sizeof(List));
   ht->size = DEFAULT_HASH_TABLE_LENGTH;
   ht->passByVal = passByVal;
+  ht->elementCount = 0;
 
   for (U4 i = 0; i < DEFAULT_HASH_TABLE_LENGTH; i++)
   {
@@ -54,9 +67,9 @@ void HashTable_free(HashTable * ht)
 
 bool HashTable_insert(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc)
 {
-  if (!ht || !key) return false;
+  if (!ht || !key || keyLen == 0) return false;
 
-  U2 hash = hashGen(key, keyLen);
+  U4 hash = hashGen(key, keyLen);
   U4 index = hash % ht->size;
   List * thisList = &(ht->table[index]);
 
@@ -67,6 +80,10 @@ bool HashTable_insert(HashTable * ht, void * key, U4 keyLen, void * val, U4 valL
   {
     List_destroyLinkAndData(thisList, link);
   }
+  else
+  {
+    ht->elementCount++;
+  }
 
   List_queue(thisList, &entry);
 
@@ -75,6 +92,8 @@ bool HashTable_insert(HashTable * ht, void * key, U4 keyLen, void * val, U4 valL
 
 void * HashTable_getRef(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
 {
+  if (!ht || !key || keyLen == 0) return NULL;
+
   Link * link = keyAlreadyExists(ht, key, keyLen);
 
   if (link)
@@ -91,6 +110,8 @@ void * HashTable_getRef(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
 
 void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
 {
+  if (!ht || !key || keyLen == 0) return NULL;
+
   Link * link = keyAlreadyExists(ht, key, keyLen);
 
   if (link)
@@ -99,7 +120,7 @@ void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
     if (!hashLink || !hashLink->val) return NULL;
 
     if (valLen) *valLen = hashLink->valLen;
-    void * ret = mallocOrDie(hashLink->valLen);
+    void * ret = malloc(hashLink->valLen);
     memcpy(ret, hashLink->val, hashLink->valLen);
     return ret;
   }
@@ -107,11 +128,11 @@ void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
   return NULL;
 }
 
-void HashTable_remove(HashTable * ht, void * key, unsigned int keyLen)
+void HashTable_remove(HashTable * ht, void * key, U4 keyLen)
 {
-  if (!ht || !key) return;
+  if (!ht || !key || keyLen == 0) return;
 
-  U2 hash = hashGen(key, keyLen);
+  U4 hash = hashGen(key, keyLen);
   U4 index = hash % ht->size;
 
   List * thisList = &(ht->table[index]);
@@ -120,7 +141,9 @@ void HashTable_remove(HashTable * ht, void * key, unsigned int keyLen)
   if (link)
   {
     List_destroyLinkAndData(thisList, link);
+    ht->elementCount--;
   }
+
 }
 
 bool HashTable_keyIn(HashTable * ht, void * key, U4 keyLen)
@@ -131,8 +154,48 @@ bool HashTable_keyIn(HashTable * ht, void * key, U4 keyLen)
 
 bool HashTable_valIn(HashTable * ht, void * key, U4 keyLen)
 {
+  if (!ht || !key) return false;
   // TODO: implement
   return false;
+}
+
+void HashTable_iterateTableVals(HashTable * ht, callbackFunction callBack, void * args)
+{
+  if (!ht || !callBack) return;
+
+  hashLinkCallbackPackage package = {.func = callBack, .args = args};
+
+  for (U4 i = 0; i < ht->size; i++)
+  {
+    List * list = &ht->table[i];
+    List_iterateList(list, iterateValsHelper, &package);
+  }
+}
+
+void HashTable_iterateTableKeys(HashTable * ht, callbackFunction callBack, void * args)
+{
+  if (!ht || !callBack) return;
+
+  hashLinkCallbackPackage package = {.func = callBack, .args = args};
+
+  for (U4 i = 0; i < ht->size; i++)
+  {
+    List * list = &ht->table[i];
+    List_iterateList(list, iterateKeysHelper, &package);
+  }
+}
+
+void HashTable_iterateTableKV(HashTable * ht, callbackFunction callBack, void * args)
+{
+  if (!ht || !callBack) return;
+
+  hashLinkCallbackPackage package = {.func = callBack, .args = args};
+
+  for (U4 i = 0; i < ht->size; i++)
+  {
+    List * list = &ht->table[i];
+    List_iterateList(list, iterateKVHelper, &package);
+  }
 }
 
 /////////////////////////
@@ -145,7 +208,7 @@ static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, void 
 
   hashEntry.freeKeyFunc = freeKeyFunc;
   hashEntry.keyLen = keyLen;
-  hashEntry.key = mallocOrDie(keyLen);
+  hashEntry.key = malloc(keyLen);
   memcpy(hashEntry.key, key, keyLen);
 
   hashEntry.passByVal = ht->passByVal;
@@ -156,7 +219,7 @@ static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, void 
   {
     if (ht->passByVal)
     {
-      hashEntry.val = mallocOrDie(valLen);
+      hashEntry.val = malloc(valLen);
       memcpy(hashEntry.val, val, valLen);
     }
     else
@@ -223,7 +286,7 @@ static void updateHashState(U4 * state)
   }
 }
 
-static U2 hashGen(void * key, U4 keyLen)
+static U4 hashGen(void * key, U4 keyLen)
 {
   if (key == NULL || keyLen == 0) return 0;
 
@@ -238,12 +301,12 @@ static U2 hashGen(void * key, U4 keyLen)
     updateHashState(&state);
   }
 
-  return state & 0xffff;
+  return state;
 }
 
 static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen)
 {
-  U2 hash = hashGen(key, keyLen);
+  U4 hash = hashGen(key, keyLen);
   U4 index = hash % ht->size;
 
   List * thisList = &(ht->table[index]);
@@ -261,4 +324,33 @@ static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen)
   }
 
   return NULL;
+}
+
+static void iterateValsHelper(void * hashLink, void * args)
+{
+  HashTableLink * l = hashLink;
+  hashLinkCallbackPackage * package = args;
+  if (!package->func) return;
+
+  package->func(l->val, package->args);
+}
+
+static void iterateKeysHelper(void * hashLink, void * args)
+{
+  HashTableLink * l = hashLink;
+  hashLinkCallbackPackage * package = args;
+  if (!package->func) return;
+
+  package->func(l->key, package->args);
+}
+
+static void iterateKVHelper(void * hashLink, void * args)
+{
+  HashTableLink * l = hashLink;
+  hashLinkCallbackPackage * package = args;
+  if (!package->func) return;
+
+  HashKVPair kv = {.key = l->key, .val = l->val};
+
+  package->func(&kv, package->args);
 }

@@ -6,7 +6,7 @@
 
 HashSet * HashSet_init(U4 keyLen, bool passByVal, FreeDataFunction freeDataFunc)
 {
-  HashSet * hs = callocOrDie(1, sizeof(HashSet));
+  HashSet * hs = calloc(1, sizeof(HashSet));
   hs->ht = HashTable_init(passByVal);
 
   hs->keyLen = keyLen;
@@ -20,6 +20,12 @@ void HashSet_free(HashSet * hs)
   if (!hs) return;
   HashTable_free(hs->ht);
   free(hs);
+}
+
+void HashSet_iterate(HashSet * hs, callbackFunction callBack, void * args)
+{
+  if (!hs || !callBack) return;
+  HashTable_iterateTableKeys(hs->ht, callBack, args);
 }
 
 bool HashSet_insert(HashSet * hs, void * key)
