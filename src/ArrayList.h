@@ -29,7 +29,7 @@ ArrayList * ArrayList_init(unsigned int elementSize, unsigned int initSize);
 void ArrayList_freeList(ArrayList * al);
 
 void ArrayList_append(ArrayList * al, void * data);
-unsigned char ArrayList_insert(ArrayList * al, unsigned int index, void * data);
+bool ArrayList_insert(ArrayList * al, unsigned int index, void * data);
 void * ArrayList_get(ArrayList * al, unsigned int index);
 void ArrayList_delete(ArrayList * al, unsigned int index);
 void ArrayList_eraseList(ArrayList * al);

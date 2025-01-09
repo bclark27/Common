@@ -1,4 +1,5 @@
 #include "Graph.h"
+#include "List.h"
 #include "HashSet.h"
 
 ///////////////
@@ -11,44 +12,37 @@
 
 typedef struct
 {
-  HashSet * outGoingEdges;
+  List * outGoingEdges;
   U4 inDegree;
   U4 outDegree;
 } VertexInfo;
 
 typedef struct
 {
+  HashSet * visited;
+  CallbackFunction callback;
   void * args;
-  callbackFunction callback;
-} GraphCallbackPackage1;
-
-typedef struct
-{
-  void * args;
-  void * parentNode;
-  callbackFunction callback;
-} GraphCallbackPackage2;
+} EdgeItrPkg;
 
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
 
-static void createVertexInfo(Graph * g, VertexInfo * vi);
 static void freeVertexInfo(void * ptr);
-static bool addDirectedEdge(Graph * g, void * a, void * b);
-static void graphCallBackHelper1(void * keyValPair, void * package);
-static void graphCallBackHelper2(void * val, void * package);
+static void edgeItrHelper(void * kvpair, void * pkg);
 
 ////////////////////////
 //  PUBLIC FUNCTIONS  //
 ////////////////////////
 
-Graph * Graph_init(U4 valLen, bool directed)
+Graph * Graph_init(U4 valLen, bool directed, FreeDataFunction freeNodeFunction,  HashFunction nodeHashFunc)
 {
   Graph * g = calloc(1, sizeof(Graph));
-  g->ht = TypedHashTable_init(valLen, sizeof(VertexInfo), true, freeVertexInfo);
+  g->ht = TypedHashTable_init(valLen, false, NULL, sizeof(VertexInfo), false, freeVertexInfo, nodeHashFunc);
 
   g->valLen = valLen;
+  g->nodeHashFunc = nodeHashFunc;
+  g->freeNodeFunction = freeNodeFunction;
   g->directed = directed;
 
   return g;
@@ -65,104 +59,192 @@ bool Graph_addEdge(Graph * g, void * a, void * b)
 {
   if (!g || !g->ht || !a || !b) return false;
 
-  bool added = true;
-  added &= addDirectedEdge(g, a, b);
-  if (g->directed && added) added &= addDirectedEdge(g, b, a);
+  Graph_addNode(g, a);
+  Graph_addNode(g, b);
 
-  return added;
+
+  VertexInfo * a_vi = TypedHashTable_getRef(g->ht, a);
+
+  List * aOutGoing = a_vi->outGoingEdges;
+
+  ListItr itr = List_getItr(aOutGoing);
+  void * val = List_getNextRef(&itr);
+  bool found = false;
+
+  while (val)
+  {
+    if (memcmp(val, b, g->valLen) == 0)
+    {
+      found = true;
+      break;
+    }
+    val = List_getNextRef(&itr);
+  }
+
+  if (!found)
+  {
+    List_queue(aOutGoing, b);
+    a_vi->outDegree++;
+    VertexInfo * b_vi = TypedHashTable_getRef(g->ht, b);
+    b_vi->inDegree++;
+  }
+
+  return true;
 }
 
 bool Graph_addNode(Graph * g, void * a)
 {
   if (!g || !g->ht || !a) return false;
 
-  if (!TypedHashTable_getRef(g->ht, a))
+  // if the node doesnt exist already...
+  if (!TypedHashTable_keyIn(g->ht, a))
   {
-    VertexInfo newVi;
-    createVertexInfo(g, &newVi);
-    TypedHashTable_insert(g->ht, a, &newVi);
+    // add a new kv pair <a, vertexinfo> to the table with empty list in vertex info
+    VertexInfo vi = {.outGoingEdges = List_listInit(g->valLen, true, NULL, g->freeNodeFunction), .outDegree = 0, .inDegree = 0};
+    TypedHashTable_insert(g->ht, a, &vi);
   }
 
   return true;
 }
 
-void Graph_iterateNodes(Graph * g, callbackFunction callback, void * args)
+void Graph_depthFirst(Graph * g, void * startNode, CallbackFunction callback, void * args)
 {
+  if (!g || !callback) return;
 
+  // check if the start node is even part of the graph first
+  if (!TypedHashTable_getRef(g->ht, startNode)) return;
+
+  HashSet * visited = HashSet_init(g->valLen, false, NULL, g->nodeHashFunc);
+  Stack * toVisit = Stack_init(g->valLen, false, NULL);
+
+  Stack_push(toVisit, startNode);
+
+  while (toVisit->len)
+  {
+    void * thisNode = Stack_pop(toVisit);
+
+    if (!HashSet_keyIn(visited, thisNode))
+    {
+      HashSet_insert(visited, thisNode);
+      callback(thisNode, args);
+
+      VertexInfo * vi = TypedHashTable_getRef(g->ht, thisNode);
+
+      if (vi && vi->outGoingEdges)
+      {
+        List * outGoing = vi->outGoingEdges;
+        ListItr itr = List_getItr(outGoing);
+        void * nextNode = List_getNextRef(&itr);
+
+        while (nextNode)
+        {
+          Stack_push(toVisit, nextNode);
+          nextNode = List_getNextRef(&itr);
+        }
+      }
+    }
+  }
+
+  Stack_free(toVisit);
+  HashSet_free(visited);
 }
 
-void Graph_iterateEdges(Graph * g, callbackFunction callback, void * args)
+void Graph_breadthFirst(Graph * g, void * startNode, CallbackFunction callback, void * args)
+{
+  if (!g || !callback) return;
+
+  // check if the start node is even part of the graph first
+  if (!TypedHashTable_getRef(g->ht, startNode)) return;
+
+  HashSet * visited = HashSet_init(g->valLen, false, NULL, g->nodeHashFunc);
+  Queue * toVisit = Queue_init(g->valLen, false, NULL);
+
+  Queue_queue(toVisit, startNode);
+
+  while (toVisit->len)
+  {
+    void * thisNode = Queue_dequeue(toVisit);
+
+    if (!HashSet_keyIn(visited, thisNode))
+    {
+      HashSet_insert(visited, thisNode);
+      callback(thisNode, args);
+
+      VertexInfo * vi = TypedHashTable_getRef(g->ht, thisNode);
+
+      if (vi && vi->outGoingEdges)
+      {
+        List * outGoing = vi->outGoingEdges;
+        ListItr itr = List_getItr(outGoing);
+        void * nextNode = List_getNextRef(&itr);
+
+        while (nextNode)
+        {
+          Queue_queue(toVisit, nextNode);
+          nextNode = List_getNextRef(&itr);
+        }
+      }
+    }
+  }
+
+  Queue_free(toVisit);
+  HashSet_free(visited);
+}
+
+void Graph_iterateEdges(Graph * g, CallbackFunction callback, void * args)
 {
   if (!g || !g->ht || !callback) return;
-  GraphCallbackPackage1 pack = {.args = args, .callback = callback};
-  TypedHashTable_iterateKV(g->ht, graphCallBackHelper1, &pack);
+  HashSet * visited = HashSet_init(sizeof(GraphEdge), false, NULL, g->nodeHashFunc);
+  EdgeItrPkg pkg = {.callback = callback, .args = args, .visited = visited};
+  TypedHashTable_iterateKV(g->ht, edgeItrHelper, &pkg);
+  HashSet_free(visited);
 }
 
 /////////////////////////
 //  PRIVATE FUNCTIONS  //
 /////////////////////////
 
-static void createVertexInfo(Graph * g, VertexInfo * vi)
-{
-  vi->outGoingEdges = HashSet_init(g->valLen, true, NULL);
-  vi->inDegree = 0;
-  vi->outDegree = 0;
-}
-
 static void freeVertexInfo(void * ptr)
 {
-  VertexInfo * vertexInfo = ptr;
-  if (!vertexInfo) return;
-  if (vertexInfo->outGoingEdges) HashSet_free(vertexInfo->outGoingEdges);
-  free(vertexInfo);
+  if (!ptr) return;
+  VertexInfo * vi = ptr;
+
+  if (vi->outGoingEdges) List_destroyList(vi->outGoingEdges);
+  free(vi);
 }
 
-static bool addDirectedEdge(Graph * g, void * a, void * b)
+static void edgeItrHelper(void * kvpair, void * pkg)
 {
-  VertexInfo * vi = TypedHashTable_getRef(g->ht, a);
+  EdgeItrPkg * p = pkg;
+  HashSet * visited = p->visited;
+  CallbackFunction callback = p->callback;
+  void * args = p->args;
 
-  if (vi)
-  {
-    vi->outDegree++;
-    HashSet_insert(vi->outGoingEdges, b);
-  }
-  else
-  {
-    VertexInfo newVi;
-    createVertexInfo(g, &newVi);
-
-    newVi.outDegree++;
-    HashSet_insert(newVi.outGoingEdges, b);
-    TypedHashTable_insert(g->ht, a, &newVi);
-  }
-
-  return true;
-}
-
-static void graphCallBackHelper1(void * keyValPair, void * package)
-{
-  GraphCallbackPackage1 * pack = package;
-  void * args = pack->args;
-  callbackFunction callback = pack->callback;
-
-  HashKVPair * kv = keyValPair;
-
-  void * node_a = kv->key;
+  HashKVPair * kv = kvpair;
+  void * k = kv->key;
   VertexInfo * vi = kv->val;
-  HashSet * outEdges = vi->outGoingEdges;
 
-  GraphCallbackPackage2 pack2 = {.args = args, .parentNode = node_a, .callback = callback};
+  GraphEdge ge1 = {.a = k};
+  GraphEdge ge2 = {.b = k};
 
-  HashSet_iterate(outEdges, graphCallBackHelper2, &pack2);
-}
+  List * aOutGoing = vi->outGoingEdges;
+  ListItr itr = List_getItr(aOutGoing);
+  void * val = List_getNextRef(&itr);
 
-static void graphCallBackHelper2(void * val, void * package)
-{
-  GraphCallbackPackage2 * pack2 = package;
+  while (val)
+  {
+    ge1.b = val;
+    ge2.a = val;
+    if (HashSet_keyIn(visited, &ge1) || HashSet_keyIn(visited, &ge2))
+    {
+      continue;
+    }
 
-  callbackFunction callback = pack2->callback;
+    HashSet_insert(visited, &ge1);
+    HashSet_insert(visited, &ge2);
 
-  GraphEdge ge = {.a = pack2->parentNode, .b = val};
+    callback(&ge1, args);
 
-  callback(&ge, pack2->args);
+    val = List_getNextRef(&itr);
+  }
 }

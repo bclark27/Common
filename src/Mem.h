@@ -21,6 +21,7 @@ this is a bad free.
 
 #define malloc(s)       mem_malloc(s, __FILE__, __LINE__)
 #define calloc(n, s)    mem_calloc(n, s, __FILE__, __LINE__)
+#define realloc(p, s)   mem_realloc(p, s, __FILE__, __LINE__)
 #define free(p)         mem_free(p, __FILE__, __LINE__)
 
 #endif
@@ -33,8 +34,9 @@ this is a bad free.
 void mem_init(void);
 void mem_freeTracker(void);
 void mem_print(void);
-void * mem_malloc(size_t size, const char * fileName, int lineNum);
-void * mem_calloc(size_t nmemb, size_t size, const char * fileName, int lineNum);
-void mem_free(void * ptr, const char * fileName, int lineNum);
+void * mem_malloc(size_t size, const char * fileName, int lineNum) __attribute__ ((hot));
+void * mem_calloc(size_t nmemb, size_t size, const char * fileName, int lineNum) __attribute__ ((hot));
+void * mem_realloc(void *ptr, size_t size, const char * fileName, int lineNum) __attribute__ ((hot));
+void mem_free(void * ptr, const char * fileName, int lineNum)__attribute__ ((hot));
 
 #endif

@@ -14,7 +14,7 @@ void incresseSize(ArrayList * al);
 // PUBLIC FUNCTIONS //
 //////////////////////
 
-ArrayList * ArrayList_init(unsigned int elementSize, unsigned int initSize)
+ArrayList * ArrayList_init(U4 elementSize, U4 initSize)
 {
   ArrayList * al = calloc(1, sizeof(ArrayList));
   al->elementSize = elementSize;
@@ -47,7 +47,7 @@ void ArrayList_append(ArrayList * al, void * data)
   al->elementCount++;
 }
 
-unsigned char ArrayList_insert(ArrayList * al, unsigned int index, void * data)
+bool ArrayList_insert(ArrayList * al, U4 index, void * data)
 {
   if (al == NULL || data == NULL || index >= al->listLen) return 0;
 
@@ -55,13 +55,13 @@ unsigned char ArrayList_insert(ArrayList * al, unsigned int index, void * data)
   return 1;
 }
 
-void * ArrayList_get(ArrayList * al, unsigned int index)
+void * ArrayList_get(ArrayList * al, U4 index)
 {
   if (al == NULL || index >= al->listLen) return NULL;
   return (void *)(al->data + index * al->elementSize);
 }
 
-void ArrayList_delete(ArrayList * al, unsigned int index)
+void ArrayList_delete(ArrayList * al, U4 index)
 {
   if (al == NULL || index >= al->listLen) return;
 

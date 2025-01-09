@@ -1,21 +1,12 @@
 #include "HashTable.h"
 
-///////////////
-//  DEFINES  //
-///////////////
-
-#define HASH_SEED                   0x12fa
-#define HASH_ROUNDS                 8
-#define FEEDBACK_VAL                0x87654321
-#define PAD_VAL                     0xc4
-
 /////////////
 //  TYPES  //
 /////////////
 
 typedef struct
 {
-  callbackFunction func;
+  CallbackFunction func;
   void * args;
 } hashLinkCallbackPackage;
 
@@ -23,26 +14,26 @@ typedef struct
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
 
-static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc);
+static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, FreeDataFunction freeKeyFunc, void * val, U4 valLen, FreeDataFunction freeValFunc, HashFunction keyHashFunc);
 static void freeHashLink(void * ptr);
-static U4 hashGen(void * key, U4 keyLen);
-static void updateHashState(U4 * state);
-static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen);
+static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen, U4 hashVal);
 static void iterateValsHelper(void * hashLink, void * args);
 static void iterateKeysHelper(void * hashLink, void * args);
 static void iterateKVHelper(void * hashLink, void * args);
+static U4 getHashVal(void * key, U4 keyLen, HashFunction keyHashFunc);
 
 ////////////////////////
 //  PUBLIC FUNCTIONS  //
 ////////////////////////
 
-HashTable * HashTable_init(bool passByVal)
+HashTable * HashTable_init(bool keyPassByRef, bool valPassByRef)
 {
   HashTable * ht = calloc(1, sizeof(HashTable));
   ht->table = calloc(DEFAULT_HASH_TABLE_LENGTH, sizeof(List));
   ht->size = DEFAULT_HASH_TABLE_LENGTH;
-  ht->passByVal = passByVal;
   ht->elementCount = 0;
+  ht->valPassByRef = valPassByRef;
+  ht->keyPassByRef = keyPassByRef;
 
   for (U4 i = 0; i < DEFAULT_HASH_TABLE_LENGTH; i++)
   {
@@ -65,16 +56,17 @@ void HashTable_free(HashTable * ht)
   free(ht);
 }
 
-bool HashTable_insert(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc)
+bool HashTable_insert(HashTable * ht, void * key, U4 keyLen, FreeDataFunction freeKeyFunc, void * val, U4 valLen, FreeDataFunction freeValFunc, HashFunction keyHashFunc)
 {
   if (!ht || !key || keyLen == 0) return false;
 
-  U4 hash = hashGen(key, keyLen);
+  U4 hash = getHashVal(key, keyLen, keyHashFunc);
+
   U4 index = hash % ht->size;
   List * thisList = &(ht->table[index]);
 
-  Link * link = keyAlreadyExists(ht, key, keyLen);
-  HashTableLink entry = createHashLink(ht, key, keyLen, val, valLen, freeDataFunc, freeKeyFunc);
+  Link * link = keyAlreadyExists(ht, key, keyLen, hash);
+  HashTableLink entry = createHashLink(ht, key, keyLen, freeKeyFunc, val, valLen, freeValFunc, keyHashFunc);
 
   if (link)
   {
@@ -90,11 +82,13 @@ bool HashTable_insert(HashTable * ht, void * key, U4 keyLen, void * val, U4 valL
   return true;
 }
 
-void * HashTable_getRef(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
+void * HashTable_getRef(HashTable * ht, void * key, U4 keyLen, U4 * valLen, HashFunction keyHashFunc)
 {
   if (!ht || !key || keyLen == 0) return NULL;
 
-  Link * link = keyAlreadyExists(ht, key, keyLen);
+  U4 hash = getHashVal(key, keyLen, keyHashFunc);
+
+  Link * link = keyAlreadyExists(ht, key, keyLen, hash);
 
   if (link)
   {
@@ -108,11 +102,13 @@ void * HashTable_getRef(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
   return NULL;
 }
 
-void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
+void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen, HashFunction keyHashFunc)
 {
   if (!ht || !key || keyLen == 0) return NULL;
 
-  Link * link = keyAlreadyExists(ht, key, keyLen);
+  U4 hash = getHashVal(key, keyLen, keyHashFunc);
+
+  Link * link = keyAlreadyExists(ht, key, keyLen, hash);
 
   if (link)
   {
@@ -128,15 +124,16 @@ void * HashTable_getVal(HashTable * ht, void * key, U4 keyLen, U4 * valLen)
   return NULL;
 }
 
-void HashTable_remove(HashTable * ht, void * key, U4 keyLen)
+void HashTable_remove(HashTable * ht, void * key, U4 keyLen, HashFunction keyHashFunc)
 {
   if (!ht || !key || keyLen == 0) return;
 
-  U4 hash = hashGen(key, keyLen);
+  U4 hash = getHashVal(key, keyLen, keyHashFunc);
+
   U4 index = hash % ht->size;
 
   List * thisList = &(ht->table[index]);
-  Link * link = keyAlreadyExists(ht, key, keyLen);
+  Link * link = keyAlreadyExists(ht, key, keyLen, hash);
 
   if (link)
   {
@@ -146,20 +143,21 @@ void HashTable_remove(HashTable * ht, void * key, U4 keyLen)
 
 }
 
-bool HashTable_keyIn(HashTable * ht, void * key, U4 keyLen)
+bool HashTable_keyIn(HashTable * ht, void * key, U4 keyLen, HashFunction keyHashFunc)
 {
   if (!ht || !key) return false;
-  return keyAlreadyExists(ht, key, keyLen) ? true : false;
+
+  return keyAlreadyExists(ht, key, keyLen, getHashVal(key, keyLen, keyHashFunc)) ? true : false;
 }
 
-bool HashTable_valIn(HashTable * ht, void * key, U4 keyLen)
+bool HashTable_valIn(HashTable * ht, void * key, U4 keyLen, HashFunction keyHashFunc)
 {
   if (!ht || !key) return false;
   // TODO: implement
   return false;
 }
 
-void HashTable_iterateTableVals(HashTable * ht, callbackFunction callBack, void * args)
+void HashTable_iterateTableVals(HashTable * ht, CallbackFunction callBack, void * args)
 {
   if (!ht || !callBack) return;
 
@@ -172,7 +170,7 @@ void HashTable_iterateTableVals(HashTable * ht, callbackFunction callBack, void 
   }
 }
 
-void HashTable_iterateTableKeys(HashTable * ht, callbackFunction callBack, void * args)
+void HashTable_iterateTableKeys(HashTable * ht, CallbackFunction callBack, void * args)
 {
   if (!ht || !callBack) return;
 
@@ -185,7 +183,7 @@ void HashTable_iterateTableKeys(HashTable * ht, callbackFunction callBack, void 
   }
 }
 
-void HashTable_iterateTableKV(HashTable * ht, callbackFunction callBack, void * args)
+void HashTable_iterateTableKV(HashTable * ht, CallbackFunction callBack, void * args)
 {
   if (!ht || !callBack) return;
 
@@ -198,33 +196,47 @@ void HashTable_iterateTableKV(HashTable * ht, callbackFunction callBack, void * 
   }
 }
 
+
+
 /////////////////////////
 //  PRIVATE FUNCTIONS  //
 /////////////////////////
 
-static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, void * val, U4 valLen, FreeDataFunction freeDataFunc, FreeDataFunction freeKeyFunc)
+static HashTableLink createHashLink(HashTable * ht, void * key, U4 keyLen, FreeDataFunction freeKeyFunc, void * val, U4 valLen, FreeDataFunction freeValFunc, HashFunction keyHashFunc)
 {
   HashTableLink hashEntry;
 
   hashEntry.freeKeyFunc = freeKeyFunc;
   hashEntry.keyLen = keyLen;
-  hashEntry.key = malloc(keyLen);
-  memcpy(hashEntry.key, key, keyLen);
+  hashEntry.keyHashFunc = keyHashFunc;
+  hashEntry.keyPassByRef = ht->keyPassByRef;
 
-  hashEntry.passByVal = ht->passByVal;
-  hashEntry.freeDataFunc = freeDataFunc;
+  if (ht->keyPassByRef)
+  {
+    hashEntry.key = malloc(sizeof(void *));
+    memcpy(hashEntry.key, &key, sizeof(void *));
+  }
+  else
+  {
+    hashEntry.key = malloc(keyLen);
+    memcpy(hashEntry.key, key, keyLen);
+  }
+
+  hashEntry.freeValFunc = freeValFunc;
   hashEntry.valLen = valLen;
+  hashEntry.valPassByRef = ht->valPassByRef;
 
   if (val && valLen)
   {
-    if (ht->passByVal)
+    if (ht->valPassByRef)
     {
-      hashEntry.val = malloc(valLen);
-      memcpy(hashEntry.val, val, valLen);
+      hashEntry.val = malloc(sizeof(void *));
+      memcpy(hashEntry.val, &val, sizeof(void *));
     }
     else
     {
-      hashEntry.val = val;
+      hashEntry.val = malloc(valLen);
+      memcpy(hashEntry.val, val, valLen);
     }
   }
   else
@@ -243,71 +255,66 @@ static void freeHashLink(void * ptr)
 
   if (hashLink->key)
   {
-    if (hashLink->freeKeyFunc)
+    if (hashLink->keyPassByRef)
     {
-      hashLink->freeKeyFunc(hashLink->key);
+      if (hashLink->freeKeyFunc)
+      {
+        hashLink->freeKeyFunc(*(void **)hashLink->key);
+      }
+      else
+      {
+        free(*(void **)hashLink->key);
+      }
+
+      free(hashLink->key);
     }
     else
     {
-      free(hashLink->key);
+      if (hashLink->freeKeyFunc)
+      {
+        hashLink->freeKeyFunc(hashLink->key);
+      }
+      else
+      {
+        free(hashLink->key);
+      }
     }
   }
 
-  if (hashLink->val && hashLink->passByVal)
+  if (hashLink->val)
   {
-    if (hashLink->freeDataFunc)
+    if (hashLink->valPassByRef)
     {
-      hashLink->freeDataFunc(hashLink->val);
+      if (hashLink->freeValFunc)
+      {
+        hashLink->freeKeyFunc(*(void **)hashLink->val);
+      }
+      else
+      {
+        free(*(void **)hashLink->val);
+        free(hashLink->val);
+      }
     }
     else
     {
-      free(hashLink->val);
+      if (hashLink->freeValFunc)
+      {
+        hashLink->freeValFunc(hashLink->val);
+      }
+      else
+      {
+        free(hashLink->val);
+      }
     }
   }
 
   free(hashLink);
 }
 
-static void updateHashState(U4 * state)
+
+static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen, U4 hashVal)
 {
-  // update the state (default is 8 iterations)
-  for (U4 i = 0; i < HASH_ROUNDS; i++)
-  {
-    // if the lowest bit is 1, shift and xor with feedback
-    if (*state & 1)
-    {
-      *state = (*state >> 1) ^ FEEDBACK_VAL;
-    }
-    // else just shift
-    else
-    {
-      *state = (*state >> 1);
-    }
-  }
-}
-
-static U4 hashGen(void * key, U4 keyLen)
-{
-  if (key == NULL || keyLen == 0) return 0;
-
-  U4 state = HASH_SEED;
-  U4 temp;
-  U1 * charKey = (U1 *)key;
-  for (int i = 0; i < keyLen; i++)
-  {
-    // update the hash state
-    temp = ((U4)charKey[i]) << 24;
-    state = ((state ^ temp) & 0xff000000) | (state & 0x00ffffff);
-    updateHashState(&state);
-  }
-
-  return state;
-}
-
-static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen)
-{
-  U4 hash = hashGen(key, keyLen);
-  U4 index = hash % ht->size;
+  U4 index = hashVal % ht->size;
 
   List * thisList = &(ht->table[index]);
 
@@ -317,9 +324,19 @@ static Link * keyAlreadyExists(HashTable * ht, void * key, U4 keyLen)
 
     if (hashLink->keyLen != keyLen) continue;
 
-    if (memcmp(key, hashLink->key, keyLen) == 0)
+    if (hashLink->keyPassByRef)
     {
-      return link;
+      if (memcmp(*(void **)key, *(void **)hashLink->key, keyLen) == 0)
+      {
+        return link;
+      }
+    }
+    else
+    {
+      if (memcmp(key, hashLink->key, keyLen) == 0)
+      {
+        return link;
+      }
     }
   }
 
@@ -330,27 +347,60 @@ static void iterateValsHelper(void * hashLink, void * args)
 {
   HashTableLink * l = hashLink;
   hashLinkCallbackPackage * package = args;
-  if (!package->func) return;
 
-  package->func(l->val, package->args);
+  if (l->valPassByRef)
+  {
+    package->func(*(void **)l->val, package->args);
+  }
+  else
+  {
+    package->func(l->val, package->args);
+  }
 }
 
 static void iterateKeysHelper(void * hashLink, void * args)
 {
   HashTableLink * l = hashLink;
   hashLinkCallbackPackage * package = args;
-  if (!package->func) return;
 
-  package->func(l->key, package->args);
+  if (l->keyPassByRef)
+  {
+    package->func(*(void **)l->key, package->args);
+  }
+  else
+  {
+    package->func(l->key, package->args);
+  }
 }
 
 static void iterateKVHelper(void * hashLink, void * args)
 {
   HashTableLink * l = hashLink;
   hashLinkCallbackPackage * package = args;
-  if (!package->func) return;
 
   HashKVPair kv = {.key = l->key, .val = l->val};
 
+  if (l->keyPassByRef)
+  {
+    kv.key = *(void **)l->key;
+  }
+
+  if (l->valPassByRef)
+  {
+    kv.val = *(void **)l->val;
+  }
+
   package->func(&kv, package->args);
+}
+
+static U4 getHashVal(void * key, U4 keyLen, HashFunction keyHashFunc)
+{
+  if (keyHashFunc)
+  {
+    return keyHashFunc(key, keyLen);
+  }
+  else
+  {
+    return FastHash_hash(key, keyLen);
+  }
 }

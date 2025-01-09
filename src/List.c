@@ -33,7 +33,7 @@ void List_listObjInit(List * list, U4 dataLen, bool passByVal, CompareFunction c
   list->freeFunc = freeFunc;
 }
 
-void List_iterateList(List * list, callbackFunction callBack, void * args)
+void List_iterateList(List * list, CallbackFunction callBack, void * args)
 {
   if (!list || !callBack) return;
   Link * l = list->head;
@@ -167,6 +167,22 @@ void * List_dequeue(List * list)
   void * data = list->tail->data;
 
   List_destroyLink(list, list->tail);
+
+  return data;
+}
+
+void List_push(List * list, void * data)
+{
+  List_queue(list, data);
+}
+
+void * List_pop(List * list)
+{
+  if (!list || !list->tail) return NULL;
+
+  void * data = list->head->data;
+
+  List_destroyLink(list, list->head);
 
   return data;
 }
