@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "hashset.h": "c",
+        "list.h": "c",
+        "type_traits": "c"
+    }
+}

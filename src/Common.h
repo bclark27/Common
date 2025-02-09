@@ -8,7 +8,16 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include <unistd.h>
+#include <stdint.h>
 #include "Mem.h"
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#include <stddef.h>
 
 ///////////////
 //  DEFINES  //
@@ -31,6 +40,11 @@
 #define RAND_DOUBLE (((rand() / (double)RAND_MAX) * 2) - 1)
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
+
+#define PAGE_SIZE       4096
+#define L1_CACHE_SIZE   32768
+#define L2_CACHE_SIZE   262144
+#define L3_CACHE_SIZE   9437184
 
 #define BIT_0     (1 << 0)
 #define BIT_1     (1 << 1)
