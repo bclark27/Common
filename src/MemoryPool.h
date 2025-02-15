@@ -13,7 +13,7 @@
 
 typedef struct MemoryPool
 {
-    size_t dataSize;
+    size_t objSize;
     void* firstSection;
 } MemoryPool;
 
@@ -35,16 +35,15 @@ int MemoryPool_AddItemInitialData(MemoryPool* mp, void* initData);
 // using this pointer to the item in the pool, remove it. if it doesnt exist then do nothing or return error code
 int MemoryPool_RemoveItem(MemoryPool* mp, void* item);
 
-// returns a pointer to the first data. send this pointer into the iternext function to get the next
-void* MemoryPool_InitIter(MemoryPool* mp);
-
-// gets the pointer to the next item in the pool. returns null when no more tiems in the pool
-void*  MemoryPool_IterNext(void* currData);
+// iter over all the elements
+void MemoryPool_Iter(MemoryPool* mp, bool (*process)(void *));
 
 /*
  * Return Codes
  */
 #define MP_SUCCESS 0
 #define MP_ERR_MEMPOOL_NULL -1
+#define MP_ERR_ITEM_NULL -2
+#define MP_ERR_ITEM_NOT_IN_MEMPOOL -3
 
 #endif

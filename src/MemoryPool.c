@@ -4,7 +4,20 @@
 //  DEFINES  //
 ///////////////
 
-#define DEFAULT_SECTION_PAGES       16
+#define SECTION_ALIGNMENT                       (L2_CACHE_SIZE)
+#define SECTION_SIZE                            (SECTION_ALIGNMENT)
+#define SECTION_PTR_MASK                        (~((U8)(SECTION_SIZE - 1)))
+#define MIN_OBJ_SIZE                            4
+#define NO_METADATA_MAX_OBJ_COUNT               (SECTION_SIZE / MIN_OBJ_SIZE)
+#define IN_USE_BIT_MASK_SIZE                    ((NO_METADATA_MAX_OBJ_COUNT / 8) + 1)
+#define SECTION_METADATA_STRUCT_SIZE            (sizeof(SectionMetaData*) + sizeof(SectionMetaData*) + sizeof(U4) + sizeof(U4))
+#define SECTION_DATA_SIZE                       (SECTION_SIZE - SECTION_METADATA_STRUCT_SIZE)
+#define MAX_OBJ_SIZE                            SECTION_DATA_SIZE
+
+#define SECTION_OBJ_COUNT(objSize)              (SECTION_DATA_SIZE / (objSize))
+#define GET_OBJ_PTR(sectionPtr, objSize, idx)   (((U1*)(sectionPtr)) + SECTION_METADATA_STRUCT_SIZE + (objSize) * (idx))
+#define GET_OBJ_SECTION(objPtr)                 ((void*)((U8)(objPtr) & (U8)SECTION_PTR_MASK))
+#define GET_OBJ_IDX(objPtr, objSize)            (((void*)(objPtr) - ((void*)GET_OBJ_SECTION(objPtr) + SECTION_METADATA_STRUCT_SIZE)) / (objSize))
 
 /////////////
 //  TYPES  //
@@ -13,55 +26,36 @@
 
 typedef struct SectionMetaData
 {
-    struct SectionMetaData * nextSection;
-    struct SectionMetaData * prevSection;
-    size_t sectionSize;
-    size_t chunkSize;
-    U2 chunkMaxCount;
-    U2 chunkCount;
+    struct SectionMetaData * next;
+    struct SectionMetaData * prev;
+    U4 inUseCount;
 
     /*
 
-    Chunks are here
+    objs are here
 
     */
 
-
 } SectionMetaData;
-
-typedef struct ChunkMetaData
-{
-    SectionMetaData * nextSection; // null if no next srction
-    SectionMetaData * mySection;
-    void* nextChunk; // null if no next chunk
-
-    /*
-     * ------------------
-     *
-     * data is here
-     * 
-     * ------------------
-     */
-
-} ChunkMetaData;
 
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
 
-SectionMetaData * CreateSectionMetaData(size_t chunkSize, SectionMetaData * prev, SectionMetaData * next);
-ChunkMetaData* TryAllocateChunk(SectionMetaData * section);
-void SetNextSection(SectionMetaData * curr, SectionMetaData * next);
-void ResetChunkData(SectionMetaData * section);
+SectionMetaData * CreateSectionMetaData(size_t objSize);
+void* TryAllocateChunk(MemoryPool* mp, SectionMetaData* section);
 
 ////////////////////////
 //  PUBLIC FUNCTIONS  //
 ////////////////////////
 
-MemoryPool * MemoryPool_init(size_t dataSize)
+MemoryPool * MemoryPool_init(size_t objSize)
 {
+    if (objSize > SECTION_SIZE)
+        return NULL;
+
     MemoryPool * mp = malloc(sizeof(MemoryPool));
-    mp->dataSize = dataSize;
+    mp->objSize = objSize;
     mp->firstSection = NULL;
     return mp;
 }
@@ -77,157 +71,120 @@ int MemoryPool_AddItemInitialData(MemoryPool* mp, void* initData)
         return MP_ERR_MEMPOOL_NULL;
 
     SectionMetaData* curr = mp->firstSection;
-    ChunkMetaData* allocatedChunk = NULL;
-    while (curr && !allocatedChunk)
+    void* allocatedObj = NULL;
+    while (curr && !allocatedObj)
     {
-        allocatedChunk = TryAllocateChunk(curr);
-        curr = curr->nextSection;
+        allocatedObj = TryAllocateChunk(mp, curr);
+        curr = curr->next;
     }
     
-    if (!allocatedChunk)
+    if (!allocatedObj)
     {
-       if (mp->firstSection)
-       {
-            curr = CreateSectionMetaData(mp->dataSize, NULL, mp->firstSection);
-            SetNextSection(curr, mp->firstSection);
+        curr = CreateSectionMetaData(mp->objSize);
+        allocatedObj = TryAllocateChunk(mp, curr);
+
+        if (mp->firstSection)
+        {
+            SectionMetaData* prevFirst = mp->firstSection;
+            prevFirst->prev = curr;
+            curr->next = prevFirst;
             mp->firstSection = curr;
-            allocatedChunk = TryAllocateChunk(curr);
-       }
-       else
-       {
-            curr = CreateSectionMetaData(mp->dataSize, NULL, NULL);
-            allocatedChunk = TryAllocateChunk(curr);
+        }
+        else
+        {
             mp->firstSection = curr;
-       }
+        }
     }
     
     if (initData)
-    {
-        void* dest = ((U1*)allocatedChunk) + sizeof(ChunkMetaData);
-        memcpy(dest, initData, mp->dataSize);
-        // printf("%d\n", *((int*)dest));
-    }
-
+        memcpy(allocatedObj, initData, mp->objSize);
+    
     return MP_SUCCESS;
 }
 
-void* MemoryPool_InitIter(MemoryPool* mp)
+int MemoryPool_RemoveItem(MemoryPool* mp, void* item)
 {
-    if (!mp || !mp->firstSection)
-        return NULL;
+    if (!mp)
+        return MP_ERR_MEMPOOL_NULL;
 
-    return ((U1*)mp->firstSection) + sizeof(SectionMetaData) + sizeof(ChunkMetaData);
-}
+    if (!item)
+        return MP_ERR_MEMPOOL_NULL;
 
-void* MemoryPool_IterNext(void* currData)
-{
-    if (!currData)
-        return NULL;
-    
-    ChunkMetaData* curr = (ChunkMetaData*)(currData - sizeof(ChunkMetaData));
-    ChunkMetaData* next = curr->nextChunk;
-    
-    if (!next)
+    SectionMetaData* section = GET_OBJ_SECTION(item);
+
+    bool found = false;
+    SectionMetaData* curr = mp->firstSection;
+    while (curr)
     {
-        if (curr->nextSection)
-        {
-            next = (ChunkMetaData*)(((U1*)curr->nextSection) + sizeof(SectionMetaData));
-        }
+        found = curr == section;
+        if (found)
+            break;
+        curr = curr->next;
     }
 
-    if (next)
-        return ((U1*)next) + sizeof(ChunkMetaData);
+    if (!found)
+        return MP_ERR_ITEM_NOT_IN_MEMPOOL;
 
-    return NULL;
+    U4 itemIdx = GET_OBJ_IDX(item, mp->objSize);
+    if (itemIdx >= section->inUseCount)
+        return MP_ERR_ITEM_NOT_IN_MEMPOOL;
+
+    U4 bytesToMoveDown = (section->inUseCount - (itemIdx + 1)) * mp->objSize;
+    U1* data = (U1*)item;
+    for (U4 i = 0; i < bytesToMoveDown; i++)
+        data[i] = data[i + mp->objSize];
+    
+    section->inUseCount--;
+}
+
+void MemoryPool_Iter(MemoryPool* mp, bool (*process)(void *))
+{
+    if (!mp)
+        return;
+
+    size_t s = mp->objSize;
+    SectionMetaData* section = mp->firstSection;
+    while (section)
+    {
+        void* currData = SECTION_METADATA_STRUCT_SIZE + ((void*)section);
+        for (U4 i = 0; i < section->inUseCount; i++)
+        {
+            bool keepGoing = process(currData);
+            if (!keepGoing)
+                return;
+
+            currData += s;
+        }
+        section = section->next;
+    }
 }
 
 /////////////////////////
 //  Private Functions  //
 /////////////////////////
 
-SectionMetaData * CreateSectionMetaData(size_t dataSize, SectionMetaData * prev, SectionMetaData * next)
+SectionMetaData * CreateSectionMetaData(size_t objSize)
 {
-    // Determine the system page size.
-    size_t pageSize = (size_t)sysconf(_SC_PAGESIZE);
-    if (pageSize == 0)
-        pageSize = 4096;  // fallback
-
-
-
-    size_t sectionSize = DEFAULT_SECTION_PAGES * pageSize;
-    size_t chunkSize = dataSize + sizeof(ChunkMetaData);
-    size_t smallestSectionSize = sizeof(SectionMetaData) + chunkSize;
-
-    if (sectionSize < smallestSectionSize)
-        sectionSize = smallestSectionSize;
-
     SectionMetaData* section = NULL;
-    int ret = posix_memalign((void**)&section, pageSize, sectionSize);
+    int ret = posix_memalign((void**)&section, SECTION_SIZE, SECTION_SIZE);
     if (ret != 0)
         return NULL;
 
-    section->chunkMaxCount = (sectionSize - sizeof(SectionMetaData)) / chunkSize;
-    section->chunkSize = chunkSize;
-    section->sectionSize = sectionSize;
-    section->nextSection = next;
-    section->prevSection = prev;
-
-    ResetChunkData(section);
-
+    section->next = NULL;
+    section->prev = NULL;
+    section->inUseCount = 0;
+    
     return section;
 }
 
-ChunkMetaData* TryAllocateChunk(SectionMetaData * section)
+void* TryAllocateChunk(MemoryPool* mp, SectionMetaData* section)
 {
-    if (!section || section->chunkCount >= section->chunkMaxCount)
-        return NULL;
+    U4 currentlyInUse = section->inUseCount;
+    U4 maxCount = SECTION_OBJ_COUNT(mp->objSize);
 
-    section->chunkCount++;
-    ResetChunkData(section);
-    
-    if (section->chunkCount == 1)
-        ResetChunkData(section->prevSection);
-    
-    return (ChunkMetaData*)(((U1*)section) + sizeof(SectionMetaData) + ((section->chunkCount - 1) * section->chunkSize));
-}
+    if (currentlyInUse >= maxCount)
+    return NULL;
 
-void SetNextSection(SectionMetaData * curr, SectionMetaData * next)
-{
-    next->prevSection = curr;
-    curr->nextSection = next;
-    ResetChunkData(curr);
-}
-
-void ResetChunkData(SectionMetaData * section)
-{
-    if (!section)
-        return;
-
-    U1* baseChunkPtr = ((U1*)section) + sizeof(SectionMetaData);
-    for (int i = 0; i < section->chunkMaxCount; i++)
-    {
-        ChunkMetaData* c = (ChunkMetaData*)(baseChunkPtr + (i * section->chunkSize));
-        ChunkMetaData* c_n = (ChunkMetaData*)(baseChunkPtr + ((i + 1) * section->chunkSize));
-        
-        if (!section->nextSection)
-        {
-            c->nextSection = NULL;
-        }
-        else
-        {
-            c->nextSection = section->nextSection->chunkCount ? section->nextSection : NULL;
-        }
-        
-        c->mySection = section;
-
-        if (i == section->chunkMaxCount - 1 ||
-            i >= section->chunkCount - 1)
-        {
-            c->nextChunk = NULL;
-        }
-        else
-        {
-            c->nextChunk = c_n;
-        }
-    }
+    section->inUseCount++;
+    return GET_OBJ_PTR(section, mp->objSize, section->inUseCount - 1);
 }

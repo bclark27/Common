@@ -10,6 +10,7 @@
 #include <math.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <time.h>
 #include "Mem.h"
 
 #include <sys/types.h>
@@ -41,10 +42,11 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
-#define PAGE_SIZE       4096
-#define L1_CACHE_SIZE   32768
-#define L2_CACHE_SIZE   262144
-#define L3_CACHE_SIZE   9437184
+#define KB_SIZE         1024
+#define PAGE_SIZE       (4 * KB_SIZE)
+#define L1_CACHE_SIZE   (32 * PAGE_SIZE)
+#define L2_CACHE_SIZE   (64 * PAGE_SIZE)
+#define L3_CACHE_SIZE   (2304 * PAGE_SIZE)
 
 #define BIT_0     (1 << 0)
 #define BIT_1     (1 << 1)
@@ -82,10 +84,18 @@
 #define BIT_SIZE(value)                 (sizeof(value) * 8)
 #define BIT_GEN_MASK(bit)               (1 << (bit))
 #define BIT_MASK(value, mask)           ((value) & (mask))
-#define BIT_GET(value, bit)             ((value) & BIT_GEN_MASK(bit))
+#define BIT_GET(value, bit)             (((value) & BIT_GEN_MASK(bit)) >> (bit))
 #define BIT_SET(value, bit)             ((value) | BIT_GEN_MASK(bit))
 #define BIT_CLEAR(value, bit)           ((value) & ~BIT_GEN_MASK(bit))
 #define BIT_FLIP(value, bit)            ((value) ^ BIT_GEN_MASK(bit))
+
+#define BIT_ARR_GET_BYTE(arr, bitIdx)           (((U1*)(arr))[(bitIdx) / 8])
+#define BIT_ARR_SET_BYTE(arr, byt, bitIdx)      ((U1*)(arr))[(bitIdx) / 8] = (byt)
+
+#define BIT_ARR_GET_BIT(arr, bitIdx)            BIT_GET(BIT_ARR_GET_BYTE(arr, bitIdx), (bitIdx) % 8)
+#define BIT_ARR_SET_BIT(arr, bitIdx)            BIT_ARR_SET_BYTE(arr, BIT_SET(BIT_ARR_GET_BYTE(arr, bitIdx), (bitIdx) % 8), bitIdx)
+#define BIT_ARR_CLEAR_BIT(arr, bitIdx)          BIT_ARR_SET_BYTE(arr, BIT_CLEAR(BIT_ARR_GET_BYTE(arr, bitIdx), (bitIdx) % 8), bitIdx)
+#define BIT_ARR_FLIP_BIT(arr, bitIdx)           BIT_ARR_SET_BYTE(arr, BIT_FLIP(BIT_ARR_GET_BYTE(arr, bitIdx), (bitIdx) % 8), bitIdx)
 
 /////////////
 //  TYPES  //

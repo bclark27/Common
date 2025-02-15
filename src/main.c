@@ -22,6 +22,14 @@ void speed_callback(uint8_t msgType, void* payload, unsigned int payloadLen) {
     printf("\n");
 
 }
+
+static long countingUp = 0;
+bool callback(void* data)
+{
+    countingUp += ((int*)data)[0];
+    return true;
+}
+
 int main()
 {
     /*
@@ -100,29 +108,55 @@ int main()
   }
     */
   
-  /*
-  MemoryPool* mp = MemoryPool_init(sizeof(int));
-  for (int i = 0; i < 400000; i++)
+    clock_t start, end;
+    int dataCount = 400000;
+    int dataSize = 4;
+    int count = 0;
+
+
+    // void* allData[dataCount];
+    // for (int i = 0; i < dataCount; i++)
+    // {
+    //     const int okok = 100;
+    //     void* tmps[okok];
+    //     for (int k = 0; k < okok; k++)
+    //         tmps[k] = malloc(dataSize);
+
+
+    //     allData[i] = malloc(dataSize);
+
+    // }
+
+    // start = clock();
+
+    // for (int i = 0; i < dataCount; i++)
+    // {
+    //     callback(allData[i]);
+    // }
+
+    // end = clock();
+
+
+  MemoryPool* mp = MemoryPool_init(dataSize );
+  for (int i = 0; i < dataCount; i++)
   {
     MemoryPool_AddItemInitialData(mp, &i);
   }
-  
-  for (void* data = MemoryPool_InitIter(mp); data; data = MemoryPool_IterNext(data))
-  {
-    printf("%d\n", *((int*)data));
-  }
+
+
+
+    start = clock();
+
+  MemoryPool_Iter(mp, callback);
+
+  end = clock();
+
+
+
+  printf("TIME: %lf\n%d\n", (double)(end - start) / CLOCKS_PER_SEC, count);
   
   return 0;
-  */
-
-
-    Entity * root = Entity_init("root");
-    Entity * a = Entity_init("A");
-    Entity * b = Entity_init("B");
-
-
-    Entity_AddChildEntity(root, a);
-    Entity_AddChildEntity(root, b);
 }
+
 
 
