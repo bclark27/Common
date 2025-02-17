@@ -9,7 +9,7 @@
 
 // Define the CRC-16 polynomial
 #define POLYNOMIAL 0xA001
-#define BUFFER_SIZE                 (1024 * 1024) //1MB
+#define BUFFER_SIZE                 MB_SIZE
 #define MAGIC_BYTES_LEN             6
 static const char MAGIC_BYTES[] =   { 0xde, 0xad, 0xfa, 0xce, 0xbe, 0xef };
 

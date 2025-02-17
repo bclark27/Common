@@ -4,158 +4,102 @@
 #include "MemoryPool.h"
 #include "Entity.h"
 
-// Use a volatile global counter so that the compiler doesn't optimize it away.
-// (Note: In production code you might want to use atomic operations.)
-unsigned long messages_received = 0;
-
-// Client callback: increments the counter for each message received.
-void speed_callback(uint8_t msgType, void* payload, unsigned int payloadLen) {
-    // We don't print every message to avoid slowing down the callback.
-    messages_received++;
-
-    printf("Client got: ");
-
-    for(int i = 0; i < payloadLen; i++)
-    {
-        printf("%c", ((char*)payload)[i]);
-    }
-    printf("\n");
-
-}
-
-static long countingUp = 0;
-bool callback(void* data)
+bool removeSome(void* data, void* state)
 {
-    countingUp += ((int*)data)[0];
-    return true;
+    int num = ((int*)data)[0];
+    if (num % 1000 == 0)
+        return 1;
+    return 0;
 }
+bool addAll(void* data, void* state)
+{
+    ((U4*)state)[0] += ((int*)data)[0];
+    return 0;
+}
+bool addAllBatch(void* data, void* state, U4 count, U4 size)
+{
+    void* curr = data;
+    void* end = curr + (count * size);
+    for (; data < end; data += size)
+    {
+        ((U4*)state)[0]++;
+
+        int num = ((int*)data)[0];
+    }
+
+    return 0;
+}
+
+//#define USE_POOL
+#define USE_BATCH
 
 int main()
 {
-    /*
-  pid_t pid = fork();
-  if (pid < 0) {
-      perror("fork");
-      exit(EXIT_FAILURE);
-  }
-
-  // Number of messages to send from the server.
-  const unsigned long NUM_MESSAGES = 10; // Adjust this as needed
-
-  if (pid == 0) {
-      // -------------------------------------------------
-      // Child Process: Acts as the Client
-      // -------------------------------------------------
-      // Give the server time to start.
-      sleep(1);
-
-      printf("Client: Connecting to service 'SpeedTestService'...\n");
-      int ret = ConnectToService("SpeedTestService", speed_callback);
-      if (ret != TS_SUCCESS) {
-          fprintf(stderr, "Client: Failed to connect to service (error %d)\n", ret);
-          exit(EXIT_FAILURE);
-      }
-      printf("Client: Connected. Waiting for messages...\n");
-
-      // Wait long enough for all messages to be received.
-      sleep(5);
-
-      printf("Client: Total messages received: %lu (expected ~%lu)\n", messages_received, NUM_MESSAGES);
-
-      ret = CloseConnection("SpeedTestService");
-      if (ret != TS_SUCCESS) {
-          fprintf(stderr, "Client: Failed to close connection (error %d)\n", ret);
-      }
-      exit(EXIT_SUCCESS);
-  } else {
-      // -------------------------------------------------
-      // Parent Process: Acts as the Server
-      // -------------------------------------------------
-      printf("Server: Starting service 'SpeedTestService'...\n");
-      int ret = StartService("SpeedTestService");
-      if (ret != TS_SUCCESS) {
-          fprintf(stderr, "Server: Failed to start service (error %d)\n", ret);
-          exit(EXIT_FAILURE);
-      }
-
-      // Allow time for the client to connect.
-      sleep(2);
-
-      // Prepare a test message.
-      const char *msg = "Speed test message";
-
-      // Send NUM_MESSAGES messages as fast as possible.
-      for (unsigned long i = 0; i < NUM_MESSAGES; i++) {
-          ret = PostMessage(MSG_TYPE_RAW, msg, (unsigned int) (sizeof("Speed test message") - 1));
-          if (ret != TS_SUCCESS) {
-              fprintf(stderr, "Server: Failed to post message %lu (error %d)\n", i, ret);
-          }
-      }
-      printf("Server: Finished sending %lu messages.\n", NUM_MESSAGES);
-
-      // Allow some time for the client to finish receiving messages.
-      sleep(5);
-
-      ret = CloseService();
-      if (ret != TS_SUCCESS) {
-          fprintf(stderr, "Server: Failed to close service (error %d)\n", ret);
-      } else {
-          printf("Server: Service closed.\n");
-      }
-
-      // Wait for the child process to finish.
-      wait(NULL);
-  }
-    */
-  
     clock_t start, end;
-    int dataCount = 400000;
-    int dataSize = 4;
-    int count = 0;
+    int iterCount = 1000;
+    int dataCount = 1000000;
+    int dataSize = 80;
+    U4 state;
 
 
-    // void* allData[dataCount];
-    // for (int i = 0; i < dataCount; i++)
-    // {
-    //     const int okok = 100;
-    //     void* tmps[okok];
-    //     for (int k = 0; k < okok; k++)
-    //         tmps[k] = malloc(dataSize);
-
-
-    //     allData[i] = malloc(dataSize);
-
-    // }
-
-    // start = clock();
-
-    // for (int i = 0; i < dataCount; i++)
-    // {
-    //     callback(allData[i]);
-    // }
-
-    // end = clock();
-
-
-  MemoryPool* mp = MemoryPool_init(dataSize );
-  for (int i = 0; i < dataCount; i++)
-  {
-    MemoryPool_AddItemInitialData(mp, &i);
-  }
-
-
+#ifndef USE_POOL
+    void* allData[dataCount];
+    for (int i = 0; i < dataCount; i++)
+    {
+        // const int okok = 100;
+        // void* tmps[okok];
+        // for (int k = 0; k < okok; k++)
+        //     tmps[k] = malloc(dataSize);
+        allData[i] = malloc(dataSize);
+    }
 
     start = clock();
+    for (int k = 0; k < iterCount; k++)
+    {
+#ifdef USE_BATCH
+        unsigned int batchSize = 60000;
+        unsigned int inc = batchSize * dataSize;
+        void* curr = allData;
+        void* end = curr + (dataCount * dataSize);
+        while (curr < end)
+        {
+            addAllBatch(curr, &state, MIN(batchSize, (end - curr) / dataSize), dataSize);
+            curr += inc;
+        }
 
-  MemoryPool_Iter(mp, callback);
+#else
+        for (int i = 0; i < dataCount; i++)
+            addAll(allData[i], &state);
+#endif
+        
+    }
+    end = clock();
+#else
+    MemoryPool* mp = MemoryPool_init(dataSize);
+    for (int i = 0; i < dataCount; i++)
+    {
+        MemoryPool_AddItemInitialData(mp, &i);
+    }
 
-  end = clock();
+    start = clock();
+    for (int i = 0; i < iterCount; i++)
+    {
+#ifdef USE_BATCH
+        MemoryPool_IterBatch(mp, addAllBatch, &state);
+#else
+        MemoryPool_Iter(mp, addAll, &state);
+#endif
 
+    }
+    end = clock();
+    // printf("%d\n", *(int*)MemoryPool_GetCurrentItemPtr(mp, 123));
+    // printf("%d\n", *(int*)MemoryPool_GetCurrentItemPtr(mp, 124));
+    // printf("%d\n", *(int*)MemoryPool_GetCurrentItemPtr(mp, 125));
+#endif
 
+    printf("TIME: %lf\n%d\n", (double)(end - start) / CLOCKS_PER_SEC, state);
 
-  printf("TIME: %lf\n%d\n", (double)(end - start) / CLOCKS_PER_SEC, count);
-  
-  return 0;
+    return 0;
 }
 
 

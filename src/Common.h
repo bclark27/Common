@@ -43,6 +43,7 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 #define KB_SIZE         1024
+#define MB_SIZE         (KB_SIZE * KB_SIZE)
 #define PAGE_SIZE       (4 * KB_SIZE)
 #define L1_CACHE_SIZE   (32 * PAGE_SIZE)
 #define L2_CACHE_SIZE   (64 * PAGE_SIZE)
