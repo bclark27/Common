@@ -1,0 +1,5 @@
+#!/bin/bash
+
+make clean
+make
+perf record -B -e L1-dcache-load-misses,L1-dcache-loads,LLC-load-misses,cache-references,cache-misses,cycles,instructions,branches,major-faults,minor-faults,migrations ./bin/comm
