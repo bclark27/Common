@@ -5,20 +5,23 @@ DBGFLAGS := -Wall -Werror -g
 CCOBJFLAGS := $(CCFLAGS) -c
 LIBS := -lm -pthread
 
+# compile macros
+TARGET_NAME := comm# FILL: target name
+
 # path macros
 BIN_PATH := bin
 OBJ_PATH := obj
 SRC_PATH := src
 DBG_PATH := debug
+LIB_PATH := $(BIN_PATH)/lib
+LIB_HEADER_PATH := $(LIB_PATH)/$(TARGET_NAME)
 
-# compile macros
-TARGET_NAME := comm# FILL: target name
 ifeq ($(OS),Windows_NT)
 	TARGET_NAME := $(addsuffix .exe,$(TARGET_NAME))
 endif
 TARGET := $(BIN_PATH)/$(TARGET_NAME)
 TARGET_DEBUG := $(DBG_PATH)/$(TARGET_NAME)
-TARGET_LIB := $(BIN_PATH)/lib$(TARGET_NAME).a
+TARGET_LIB := $(LIB_PATH)/lib$(TARGET_NAME).a
 
 # src files & obj files
 SRC := $(foreach x, $(SRC_PATH), $(wildcard $(addprefix $(x)/*,.c*)))
@@ -30,7 +33,8 @@ DISTCLEAN_LIST := $(OBJ) \
                   $(OBJ_DEBUG)
 CLEAN_LIST := $(TARGET) \
 			  $(TARGET_DEBUG) \
-			  $(DISTCLEAN_LIST)
+			  $(DISTCLEAN_LIST) \
+			  $(TARGET_LIB)
 
 # default rule
 default: makedir all
@@ -54,7 +58,7 @@ $(TARGET_LIB): $(OBJ)
 # phony rules
 .PHONY: makedir
 makedir:
-	@mkdir -p $(BIN_PATH) $(OBJ_PATH) $(DBG_PATH)
+	@mkdir -p $(BIN_PATH) $(OBJ_PATH) $(DBG_PATH) $(LIB_PATH) $(LIB_HEADER_PATH)
 
 .PHONY: all
 all: $(TARGET)
@@ -66,12 +70,14 @@ debug: $(TARGET_DEBUG)
 clean:
 	@echo CLEAN $(CLEAN_LIST)
 	@rm -f $(CLEAN_LIST)
+	@rm -rf $(LIB_HEADER_PATH)
 
 .PHONY: lib
 lib:
 	@make
 	@ar ruv $(TARGET_LIB) $(OBJ)
 	@ranlib $(TARGET_LIB)
+	@cp ./$(SRC_PATH)/*.h ./$(LIB_HEADER_PATH)
 
 .PHONY: distclean
 distclean:
