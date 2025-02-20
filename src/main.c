@@ -4,6 +4,8 @@
 #include "MemoryPool.h"
 #include "Entity.h"
 
+// test comment
+
 bool removeSome(void* data, void* state)
 {
     int num = ((int*)data)[0];
