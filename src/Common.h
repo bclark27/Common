@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <time.h>
 #include "Mem.h"
+#include <stdarg.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -98,6 +99,10 @@
 #define BIT_ARR_CLEAR_BIT(arr, bitIdx)          BIT_ARR_SET_BYTE(arr, BIT_CLEAR(BIT_ARR_GET_BYTE(arr, bitIdx), (bitIdx) % 8), bitIdx)
 #define BIT_ARR_FLIP_BIT(arr, bitIdx)           BIT_ARR_SET_BYTE(arr, BIT_FLIP(BIT_ARR_GET_BYTE(arr, bitIdx), (bitIdx) % 8), bitIdx)
 
+#define my_assert(e) ((e) ? true : \
+    (my_debug("%s:%s,%d: assertion '%s' failed\n", \
+               __FILE__, __FUNCTION__, __LINE__, #e), false))
+
 /////////////
 //  TYPES  //
 /////////////
@@ -110,5 +115,18 @@ typedef U4 ( *HashFunction)(void *, U4);
 /////////////////////////////
 //  FUNCTION DECLERATIONS  //
 /////////////////////////////
+
+#ifndef __MY_DEBUG
+#define __MY_DEBUG
+
+static inline bool my_debug(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+    return false;
+}
+
+#endif
 
 #endif
