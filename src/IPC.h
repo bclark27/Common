@@ -1,11 +1,12 @@
-#ifndef CROSS_COMM_H
-#define CROSS_COMM_H
+#ifndef IPC_H_
+#define IPC_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "Common.h"
+
 
 /*
  * ================================
@@ -14,7 +15,7 @@ extern "C" {
  */
 // Define message types. Extend this list with your own types as needed.
 typedef enum {
-    MSG_TYPE_RAW = 0,       // Raw binary data
+    MSG_TYPE_RAW = 0,       // Raw binary data with header to define length
     MSG_TYPE_EXAMPLE = 1,   // Example struct message
     // Add additional message types here...
 } MessageType;
@@ -27,7 +28,10 @@ typedef struct {
 } ExampleMessage;
 
 typedef unsigned int MessageSize;
-/*
+
+
+
+  /*
  * ================================
  * API Functions
  * ================================
@@ -40,17 +44,17 @@ typedef unsigned int MessageSize;
 
 // StartService() begins hosting a TCP service identified by a name.
 // Returns TS_SUCCESS or an error code.
-int StartService(const char* myServiceName);
+int IPC_StartService(const char* myServiceName);
 
 // PostMessage() sends a message to all connected clients.
 // The protocol automatically prepends a one-byte message type header.
 // Returns TS_SUCCESS or an error code.
 // Note: dataLen is the length of the payload (excluding the type byte).
-int PostMessage(MessageType msgType, void* data, unsigned int dataLen);
+int IPC_PostMessage(MessageType msgType, void* data, unsigned int dataLen);
 
 // CloseService() stops the service and closes all client connections.
 // Returns TS_SUCCESS or an error code.
-int CloseService();
+int IPC_CloseService();
 
 /*
  * Client side functions.
@@ -58,19 +62,19 @@ int CloseService();
  * The callback will be called with the message type, a pointer to the payload,
  * and the payload length.
  */
-int ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(MessageType, void*, MessageSize));
-int CloseConnection(const char* serviceName);
+int IPC_ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(MessageType, void*, MessageSize));
+int IPC_CloseConnection(const char* serviceName);
 
 /*
  * Return Codes
  */
-#define TS_SUCCESS 0
-#define TS_ERR_ALREADY_HOSTING -1
-#define TS_ERR_NO_SERVICE -2
-#define TS_ERR_CONNECTION_FAIL -3
-#define TS_ERR_ALREADY_CONNECTED -4
-#define TS_ERR_NOT_CONNECTED -5
-#define TS_ERR_INTERNAL -6
+#define CC_SUCCESS 0
+#define CC_ERR_ALREADY_HOSTING -1
+#define CC_ERR_NO_SERVICE -2
+#define CC_ERR_CONNECTION_FAIL -3
+#define CC_ERR_ALREADY_CONNECTED -4
+#define CC_ERR_NOT_CONNECTED -5
+#define CC_ERR_INTERNAL -6
 
 #ifdef __cplusplus
 }

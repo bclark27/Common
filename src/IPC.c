@@ -1,4 +1,4 @@
-#include "CrossComm.h"
+#include "IPC.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -122,12 +122,12 @@ static void* server_accept_thread(void* arg) {
 // Service Side API Implementation
 // ---------------------------------------------------------------------
 
-int StartService(const char* myServiceName) {
+int IPC_StartService(const char* myServiceName) {
     if (g_service_running) {
-        return TS_ERR_ALREADY_HOSTING;
+        return CC_ERR_ALREADY_HOSTING;
     }
     if (!myServiceName) {
-        return TS_ERR_INTERNAL;
+        return CC_ERR_INTERNAL;
     }
 
     strncpy(g_service_name, myServiceName, sizeof(g_service_name)-1);
@@ -140,7 +140,7 @@ int StartService(const char* myServiceName) {
     g_server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (g_server_socket < 0) {
         perror("socket");
-        return TS_ERR_INTERNAL;
+        return CC_ERR_INTERNAL;
     }
 
     // Allow address reuse
@@ -157,13 +157,13 @@ int StartService(const char* myServiceName) {
     if (bind(g_server_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("bind");
         close(g_server_socket);
-        return TS_ERR_INTERNAL;
+        return CC_ERR_INTERNAL;
     }
 
     if (listen(g_server_socket, 10) < 0) {
         perror("listen");
         close(g_server_socket);
-        return TS_ERR_INTERNAL;
+        return CC_ERR_INTERNAL;
     }
 
     g_service_running = 1;
@@ -173,17 +173,17 @@ int StartService(const char* myServiceName) {
         perror("pthread_create");
         close(g_server_socket);
         g_service_running = 0;
-        return TS_ERR_INTERNAL;
+        return CC_ERR_INTERNAL;
     }
 
     printf("Service '%s' started on port %d\n", myServiceName, g_server_port);
-    return TS_SUCCESS;
+    return CC_SUCCESS;
 }
 
 // PostMessage() sends a message to all connected clients.
 // It automatically prepends a one-byte message type header.
-int PostMessage(MessageType msgType, void* data, unsigned int dataLen) {
-    if (!data || dataLen == 0) return TS_ERR_INTERNAL;
+int IPC_PostMessage(MessageType msgType, void* data, unsigned int dataLen) {
+    if (!data || dataLen == 0) return CC_ERR_INTERNAL;
 
     // Allocate a buffer for header (1 byte) + payload + magic bytes
     uint8_t packet[BUFFER_SIZE];
@@ -202,11 +202,11 @@ int PostMessage(MessageType msgType, void* data, unsigned int dataLen) {
     }
     pthread_mutex_unlock(&g_clients_mutex);
 
-    return TS_SUCCESS;
+    return CC_SUCCESS;
 }
 
-int CloseService() {
-    if (!g_service_running) return TS_ERR_INTERNAL;
+int IPC_CloseService() {
+    if (!g_service_running) return CC_ERR_INTERNAL;
     g_service_running = 0;
     // Close the listening socket to unblock accept
     close(g_server_socket);
@@ -225,7 +225,7 @@ int CloseService() {
     pthread_mutex_unlock(&g_clients_mutex);
 
     printf("Service '%s' closed.\n", g_service_name);
-    return TS_SUCCESS;
+    return CC_SUCCESS;
 }
 
 // ---------------------------------------------------------------------
@@ -353,8 +353,8 @@ static void* client_receive_thread(void* arg) {
     return NULL;
 }
 
-int ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(MessageType, void*, MessageSize)) {
-    if (!serviceName) return TS_ERR_INTERNAL;
+int IPC_ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(MessageType, void*, MessageSize)) {
+    if (!serviceName) return CC_ERR_INTERNAL;
 
     // Check if we already have a connection to this service.
     pthread_mutex_lock(&g_client_connections_mutex);
@@ -362,7 +362,7 @@ int ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(Mes
     while (iter) {
         if (strcmp(iter->serviceName, serviceName) == 0) {
             pthread_mutex_unlock(&g_client_connections_mutex);
-            return TS_ERR_ALREADY_CONNECTED;
+            return CC_ERR_ALREADY_CONNECTED;
         }
         iter = iter->next;
     }
@@ -373,7 +373,7 @@ int ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(Mes
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         perror("socket");
-        return TS_ERR_INTERNAL;
+        return CC_ERR_INTERNAL;
     }
 
     struct sockaddr_in serv_addr;
@@ -385,14 +385,14 @@ int ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(Mes
     if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("connect");
         close(sockfd);
-        return TS_ERR_CONNECTION_FAIL;
+        return CC_ERR_CONNECTION_FAIL;
     }
 
     // Create a new client connection structure.
     client_connection_t *conn = malloc(sizeof(client_connection_t));
     if (!conn) {
         close(sockfd);
-        return TS_ERR_INTERNAL;
+        return CC_ERR_INTERNAL;
     }
     strncpy(conn->serviceName, serviceName, sizeof(conn->serviceName)-1);
     conn->serviceName[sizeof(conn->serviceName)-1] = '\0';
@@ -405,7 +405,7 @@ int ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(Mes
         perror("pthread_create");
         close(sockfd);
         free(conn);
-        return TS_ERR_INTERNAL;
+        return CC_ERR_INTERNAL;
     }
 
     // Add connection to global list.
@@ -415,11 +415,11 @@ int ConnectToService(const char* serviceName, void (*onDataReceivedCallback)(Mes
     pthread_mutex_unlock(&g_client_connections_mutex);
 
     printf("Connected to service '%s' on port %d\n", serviceName, port);
-    return TS_SUCCESS;
+    return CC_SUCCESS;
 }
 
-int CloseConnection(const char* serviceName) {
-    if (!serviceName) return TS_ERR_INTERNAL;
+int IPC_CloseConnection(const char* serviceName) {
+    if (!serviceName) return CC_ERR_INTERNAL;
 
     pthread_mutex_lock(&g_client_connections_mutex);
     client_connection_t *iter = g_client_connections;
@@ -439,11 +439,11 @@ int CloseConnection(const char* serviceName) {
             free(iter);
             pthread_mutex_unlock(&g_client_connections_mutex);
             printf("Closed connection to service '%s'\n", serviceName);
-            return TS_SUCCESS;
+            return CC_SUCCESS;
         }
         prev = iter;
         iter = iter->next;
     }
     pthread_mutex_unlock(&g_client_connections_mutex);
-    return TS_ERR_NOT_CONNECTED;
+    return CC_ERR_NOT_CONNECTED;
 }

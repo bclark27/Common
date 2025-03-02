@@ -3,7 +3,7 @@ CC := gcc# FILL: the compiler
 CCFLAGS := -Wall # FILL: compile flags
 DBGFLAGS := -Wall -Werror -g
 CCOBJFLAGS := $(CCFLAGS) -c
-LIBS := -lm -pthread
+LIBS := -lm -pthread -lusb-1.0
 
 # compile macros
 TARGET_NAME := comm# FILL: target name
