@@ -1,17 +1,21 @@
-#include <stdio.h>
-#include "Common.h"
-#include "USB.h"
+#include <ncurses.h>
+#include "IPC.h"
 
+void OnPushEvent(MessageType t, void* d, MessageSize s)
+{
+  if (t == MSG_TYPE_ABL_PAD)
+  {
+    AbletonPkt_pad* pad = d;
+    printf("%d, %d, %d\n", pad->padX, pad->padY, pad->padVelocity);
+    IPC_PostMessage(MSG_TYPE_RAW, "hello", 5);
+  }
+}
 
 int main()
 {
-
-  USB_handle* h = USB_init(1, 21, 2536);
-  int ok[] = {120, 120 ,120,120,123,123,123,123};
-  int a = USB_send_data(h, ok, 8 * 4);
-  printf("%d\n", a);
-  USB_free(h);
-  USB_destroy_context();
+  IPC_StartService("Controller"); 
+  IPC_ConnectToService("PushEvents", OnPushEvent);
+  while (1){}
   return 0;
 }
 
