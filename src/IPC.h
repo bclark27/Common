@@ -16,7 +16,11 @@ extern "C" {
 // Define message types. Extend this list with your own types as needed.
 typedef enum {
     MSG_TYPE_RAW = 0,       // Raw binary data with header to define length
-    MSG_TYPE_EXAMPLE = 1,   // Example struct message
+    MSG_TYPE_ABL_PUSH = 1,
+    MSG_TYPE_ABL_PAD = 2,
+    MSG_TYPE_ABL_BUTTON = 3,
+    MSG_TYPE_ABL_KNOB = 4,
+    MSG_TYPE_ABL_SLIDER = 5,
     // Add additional message types here...
 } MessageType;
 
@@ -26,6 +30,81 @@ typedef struct {
     int someField;
     float anotherField;
 } ExampleMessage;
+
+
+/*
+ * ================================
+ * Ableton Push Event Packets
+ * ================================
+ */
+
+typedef struct AbletonPkt_pushEvent
+{
+  unsigned char pktType;
+  float slider_percent;
+  unsigned int slider_value;
+  unsigned int data;
+  int knob_delta;
+  int pad_x;
+  int pad_y;
+
+  unsigned char pad_velocity;
+  unsigned char pad_state;
+  unsigned char knob_state;
+  unsigned char knob_id;
+  unsigned char btn_id;
+  unsigned char btn_state;
+  unsigned char slider_state;
+  unsigned char event_class;
+} AbletonPkt_pushEvent;
+
+typedef struct AbletonPkt_pad
+{
+  unsigned char pktType;
+  unsigned int data;
+  int id;
+  int padX;
+  int padY;
+  unsigned char isPress;
+  unsigned char isHold;
+  unsigned char isRelease;
+  unsigned char padVelocity;
+} AbletonPkt_pad;
+
+typedef struct AbletonPkt_knob
+{
+  unsigned char pktType;
+  unsigned int data;
+  unsigned char id;
+  char direction;
+  unsigned char isPress;
+  unsigned char isTurning;
+  unsigned char isRelease;
+} AbletonPkt_knob;
+
+typedef struct AbletonPkt_button
+{
+  unsigned char pktType;
+  unsigned int data;
+  unsigned char btnId;
+  unsigned char isPress;
+  unsigned char isRelease;
+
+} AbletonPkt_button;
+
+typedef struct AbletonPkt_slider
+{
+  unsigned char pktType;
+  unsigned int data;
+  int value;
+  float percent;
+  unsigned char isSliding;
+  unsigned char isPress;
+  unsigned char isRelease;
+} AbletonPkt_slider;
+
+
+
 
 typedef unsigned int MessageSize;
 
