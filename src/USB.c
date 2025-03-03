@@ -108,7 +108,7 @@ int USB_read_data(USB_handle* handle, void* data, int size)
   int r = libusb_bulk_transfer(handle->handle, (handle->endpoint_in_address | LIBUSB_ENDPOINT_IN), data, size, &actual, 7);
   //printf("Primer: %d\n", actual);
 
-  if (r)
+  if (r && r != LIBUSB_ERROR_TIMEOUT) 
     printf("USB Read Error: %d\n", r);
 
   return actual; 
