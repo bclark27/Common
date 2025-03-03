@@ -108,6 +108,9 @@ int USB_read_data(USB_handle* handle, void* data, int size)
   int r = libusb_bulk_transfer(handle->handle, (handle->endpoint_in_address | LIBUSB_ENDPOINT_IN), data, size, &actual, 7);
   //printf("Primer: %d\n", actual);
 
+  if (r)
+    printf("USB Read Error: %d\n", r);
+
   return actual; 
 }
 
@@ -118,6 +121,9 @@ int USB_send_data(USB_handle* handle, void* data, int size)
 
   int actual;
   int r = libusb_bulk_transfer(handle->handle, (handle->endpoint_out_address | LIBUSB_ENDPOINT_OUT), data, size, &actual, 7);
+
+  if (r)
+    printf("USB Send Error: %d\n", r);
 
   return actual;
 }
