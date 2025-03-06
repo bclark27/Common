@@ -4,6 +4,7 @@
 
 void OnPushEvent(MessageType t, void* d, MessageSize s)
 {
+
   if (t == MSG_TYPE_ABL_PAD)
   {
     AbletonPkt_pad* pad = d;
@@ -28,6 +29,18 @@ void OnPushEvent(MessageType t, void* d, MessageSize s)
     cmd_t.length = size;
 
     IPC_PostMessage(MSG_TYPE_ABL_CMD_TEXT, &cmd_t, sizeof(AbletonPkt_Cmd_Text));
+  }
+
+  if (t == MSG_TYPE_ABL_BUTTON)
+  {
+    AbletonPkt_button* btn = d;
+
+    AbletonPkt_Cmd_Button cmd_b = {
+      .id = btn->btnId,
+      .blink = btn->isPress ? BlinkStates_BlinkShot4 : BlinkStates_BlinkOff,
+    };
+
+    IPC_PostMessage(MSG_TYPE_ABL_CMD_BUTTON, &cmd_b, sizeof(AbletonPkt_Cmd_Button));
   }
 }
 
