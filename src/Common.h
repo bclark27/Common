@@ -44,7 +44,12 @@
 #define RAND_DOUBLE (((rand() / (double)RAND_MAX) * 2) - 1)
 #define MIN(a,b) (((a)<(b))?(a):(b))
 #define MAX(a,b) (((a)>(b))?(a):(b))
-
+#define MAP(i1, i2, o1, o2, x)    ((o1) + (R8)(((o2) - (o1)) / (R8)((i2) - (i1))) * (R8)((x) - (i1)))
+#define INTERP(a, b, steps, x)    ((R8)(a) + (((R8)(b) - (R8)(a)) / (R8)(steps)) * (R8)(x))
+#define PI        3.14159265358979323846f
+#define PI2       (PI * 2)
+#define PI_ON_TWO (PI / 2)
+#define TWO_ON_PI (2 / PI)
 #define KB_SIZE         1024
 #define MB_SIZE         (KB_SIZE * KB_SIZE)
 #define PAGE_SIZE       (4 * KB_SIZE)
